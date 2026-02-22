@@ -25,8 +25,8 @@ export async function taskRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate] },
     async (request, reply) => {
       const role = (request.user as { role: string }).role;
-      if (role !== "COORDINATOR") {
-        return reply.code(403).send({ error: "Only the coordinator can assign tasks" });
+      if (role !== "COORDINATOR" && role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only the coordinator or admin can assign tasks" });
       }
 
       const { colleagueId, taskType, workingDayId } = request.body;
@@ -62,8 +62,8 @@ export async function taskRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate] },
     async (request, reply) => {
       const role = (request.user as { role: string }).role;
-      if (role !== "COORDINATOR") {
-        return reply.code(403).send({ error: "Only the coordinator can complete tasks" });
+      if (role !== "COORDINATOR" && role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only the coordinator or admin can complete tasks" });
       }
 
       const allocation = await prisma.taskAllocation.update({
@@ -83,8 +83,8 @@ export async function taskRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate] },
     async (request, reply) => {
       const role = (request.user as { role: string }).role;
-      if (role !== "COORDINATOR") {
-        return reply.code(403).send({ error: "Only the coordinator can extend tasks" });
+      if (role !== "COORDINATOR" && role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only the coordinator or admin can extend tasks" });
       }
 
       const existing = await prisma.taskAllocation.findUniqueOrThrow({
@@ -114,8 +114,8 @@ export async function taskRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate] },
     async (request, reply) => {
       const role = (request.user as { role: string }).role;
-      if (role !== "COORDINATOR") {
-        return reply.code(403).send({ error: "Only the coordinator can reallocate tasks" });
+      if (role !== "COORDINATOR" && role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only the coordinator or admin can reallocate tasks" });
       }
 
       const newType = request.body.taskType;

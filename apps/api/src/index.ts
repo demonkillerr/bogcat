@@ -40,6 +40,19 @@ app.decorate(
   async (request: import("fastify").FastifyRequest, reply: import("fastify").FastifyReply) => {
     try {
       await request.jwtVerify();
+
+      // Verify session still exists in DB (enables admin force-logout)
+      const payload = request.user as { userId: string };
+      const token = request.headers.authorization?.replace("Bearer ", "");
+      if (!token) {
+        return reply.code(401).send({ error: "Unauthorised" });
+      }
+      const session = await prisma.session.findFirst({
+        where: { userId: payload.userId, token },
+      });
+      if (!session) {
+        return reply.code(401).send({ error: "Session revoked" });
+      }
     } catch {
       reply.code(401).send({ error: "Unauthorised" });
     }

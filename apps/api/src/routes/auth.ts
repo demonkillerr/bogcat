@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
 import { prisma } from "../index.js";
+import { broadcast } from "../ws/handler.js";
 
 export async function authRoutes(app: FastifyInstance) {
   // POST /auth/login
@@ -59,7 +60,8 @@ export async function authRoutes(app: FastifyInstance) {
         data: { userId: user.id, token },
       });
 
-      return reply.send({ token, role: user.role });
+      broadcast({ type: "SESSION_CHANGED", payload: { event: "login", username: user.username } });
+      return reply.send({ token, role: user.role, userId: user.id });
     }
   );
 
@@ -68,9 +70,62 @@ export async function authRoutes(app: FastifyInstance) {
     "/logout",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const payload = request.user as { userId: string };
+      const payload = request.user as { userId: string; username: string };
       await prisma.session.deleteMany({ where: { userId: payload.userId } });
+      broadcast({ type: "SESSION_CHANGED", payload: { event: "logout", username: payload.username } });
       return reply.send({ message: "Logged out successfully" });
+    }
+  );
+
+  // GET /auth/sessions — admin only: list all active sessions
+  app.get(
+    "/sessions",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const role = (request.user as { role: string }).role;
+      if (role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only admin can view active sessions" });
+      }
+
+      const sessions = await prisma.session.findMany({
+        include: { user: { select: { id: true, username: true, role: true } } },
+        orderBy: { createdAt: "asc" },
+      });
+
+      const result = sessions.map((s: { id: string; createdAt: Date; user: { id: string; username: string; role: string } }) => ({
+        id: s.id,
+        userId: s.user.id,
+        username: s.user.username,
+        role: s.user.role,
+        createdAt: s.createdAt,
+      }));
+
+      return reply.send(result);
+    }
+  );
+
+  // DELETE /auth/sessions/:userId — admin only: force logout a user
+  app.delete<{ Params: { userId: string } }>(
+    "/sessions/:userId",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const role = (request.user as { role: string }).role;
+      if (role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only admin can force logout users" });
+      }
+
+      const { userId } = request.params;
+
+      // Prevent admin from force-logging out themselves
+      const currentUserId = (request.user as { userId: string }).userId;
+      if (userId === currentUserId) {
+        return reply.code(400).send({ error: "Cannot force logout yourself. Use the regular logout." });
+      }
+
+      await prisma.session.deleteMany({ where: { userId } });
+      broadcast({ type: "SESSION_CHANGED", payload: { event: "force_logout", userId } });
+      broadcast({ type: "FORCE_LOGOUT", payload: { userId } });
+      return reply.send({ message: "User session terminated" });
     }
   );
 }
