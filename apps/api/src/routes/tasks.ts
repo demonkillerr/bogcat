@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { TaskType } from "@bogcat/db";
+import { TaskType } from "@prisma/client";
 import { prisma } from "../index.js";
 import { broadcast } from "../ws/handler.js";
 
@@ -11,7 +11,7 @@ export const TASK_DURATIONS: Record<TaskType, number> = {
   DISPENSING_SINGLE_VISION: 30,
   DISPENSING_VARIFOCALS: 30,
   COLLECTION: 10,
-  "EGÖS": 30,
+  EGOS: 30,
   FILE_PULLING: 60,
   SCANNING: 60,
 };

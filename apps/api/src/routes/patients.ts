@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { ArrivalReason } from "@bogcat/db";
+import { ArrivalReason } from "@prisma/client";
 import { prisma } from "../index.js";
 import { broadcast } from "../ws/handler.js";
 
