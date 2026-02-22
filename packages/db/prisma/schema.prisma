@@ -1,0 +1,130 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+model User {
+  id       String  @id @default(cuid())
+  username String  @unique // "coordinator" | "frontdesk" | "admin"
+  role     Role
+
+  session  Session?
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  createdAt DateTime @default(now())
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+enum Role {
+  COORDINATOR
+  FRONTDESK
+  ADMIN
+}
+
+// ─── Colleagues ──────────────────────────────────────────────────────────────
+
+model Colleague {
+  id           String         @id @default(cuid())
+  name         String         @unique
+  type         ColleagueType
+  isAssignable Boolean        @default(true) // false for Iqbal (main manager)
+
+  colleagueOnDays ColleagueOnDay[]
+  taskAllocations TaskAllocation[]
+}
+
+enum ColleagueType {
+  OC
+  MANAGER
+}
+
+// ─── Working Day ─────────────────────────────────────────────────────────────
+
+model WorkingDay {
+  id        String   @id @default(cuid())
+  date      DateTime @unique
+  locked    Boolean  @default(false) // true after 10AM
+
+  colleagues      ColleagueOnDay[]
+  taskAllocations TaskAllocation[]
+  patientArrivals PatientArrival[]
+}
+
+model ColleagueOnDay {
+  id           String     @id @default(cuid())
+  workingDayId String
+  colleagueId  String
+
+  workingDay WorkingDay @relation(fields: [workingDayId], references: [id])
+  colleague  Colleague  @relation(fields: [colleagueId], references: [id])
+
+  @@unique([workingDayId, colleagueId])
+}
+
+// ─── Task Allocation ─────────────────────────────────────────────────────────
+
+model TaskAllocation {
+  id            String           @id @default(cuid())
+  workingDayId  String
+  colleagueId   String
+  taskType      TaskType
+  status        AllocationStatus @default(ACTIVE)
+  allocatedAt   DateTime         @default(now())
+  durationMins  Int              // base duration in minutes
+  extendedUntil DateTime?        // set when coordinator extends
+
+  workingDay WorkingDay @relation(fields: [workingDayId], references: [id])
+  colleague  Colleague  @relation(fields: [colleagueId], references: [id])
+}
+
+enum TaskType {
+  PRE_SCREENING_FULL_SIGHT_TEST   // 15 mins
+  PRE_SCREENING_SUPPLEMENTARY     // 10 mins
+  POST_CHECKS                     // 10 mins
+  DISPENSING_SINGLE_VISION        // 30 mins
+  DISPENSING_VARIFOCALS           // 30 mins
+  COLLECTION                      // 10 mins
+  EGÖS                            // 30 mins
+  FILE_PULLING                    // 60 mins
+  SCANNING                        // 60 mins
+}
+
+enum AllocationStatus {
+  ACTIVE
+  COMPLETED
+  EXTENDED
+}
+
+// ─── Patient Arrivals ─────────────────────────────────────────────────────────
+
+model PatientArrival {
+  id           String        @id @default(cuid())
+  workingDayId String
+  name         String
+  dob          DateTime
+  reason       ArrivalReason
+  arrivedAt    DateTime      @default(now())
+  acknowledged Boolean       @default(false)
+
+  workingDay WorkingDay @relation(fields: [workingDayId], references: [id])
+}
+
+enum ArrivalReason {
+  SIGHT_TEST
+  COLLECTION
+  ADJUSTMENT
+}

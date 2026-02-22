@@ -1,0 +1,19 @@
+{
+  "name": "@bogcat/db",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "ts-node --esm src/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.4.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}
