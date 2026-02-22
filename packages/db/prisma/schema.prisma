@@ -98,7 +98,7 @@ enum TaskType {
   DISPENSING_SINGLE_VISION        // 30 mins
   DISPENSING_VARIFOCALS           // 30 mins
   COLLECTION                      // 10 mins
-  EGÖS                            // 30 mins
+  EGOS                            // 30 mins
   FILE_PULLING                    // 60 mins
   SCANNING                        // 60 mins
 }

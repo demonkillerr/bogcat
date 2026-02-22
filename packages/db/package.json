@@ -5,15 +5,18 @@
   "main": "./src/index.ts",
   "scripts": {
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:seed": "ts-node --esm src/seed.ts"
+    "db:migrate": "prisma migrate dev --name init",
+    "db:seed": "tsx src/seed.ts"
+  },
+  "prisma": {
+    "seed": "tsx src/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.4.1"
   },
   "devDependencies": {
     "prisma": "^6.4.1",
-    "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
     "typescript": "^5.7.3"
   }
 }
