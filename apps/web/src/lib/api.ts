@@ -18,9 +18,19 @@ export function setRole(role: string) {
   localStorage.setItem("bogcat_role", role);
 }
 
+export function getUserId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("bogcat_userId");
+}
+
+export function setUserId(userId: string) {
+  localStorage.setItem("bogcat_userId", userId);
+}
+
 export function clearAuth() {
   localStorage.removeItem("bogcat_token");
   localStorage.removeItem("bogcat_role");
+  localStorage.removeItem("bogcat_userId");
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {
@@ -35,6 +45,12 @@ async function apiFetch(path: string, options: RequestInit = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    // If session was revoked (force logout) or token expired, redirect to login
+    if (res.status === 401 && typeof window !== "undefined") {
+      clearAuth();
+      window.location.href = "/";
+      throw new Error("Session expired");
+    }
     throw new Error(data?.error ?? `Request failed: ${res.status}`);
   }
   return data;
@@ -96,4 +112,9 @@ export const api = {
 
   acknowledgeArrival: (id: string) =>
     apiFetch(`/patients/${id}/acknowledge`, { method: "PATCH" }),
+
+  getActiveSessions: () => apiFetch("/auth/sessions"),
+
+  adminLogoutUser: (userId: string) =>
+    apiFetch(`/auth/sessions/${userId}`, { method: "DELETE" }),
 };
