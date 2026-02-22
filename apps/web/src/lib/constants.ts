@@ -5,7 +5,7 @@ export const TASK_LABELS: Record<string, string> = {
   DISPENSING_SINGLE_VISION: "Dispensing: Single Vision",
   DISPENSING_VARIFOCALS: "Dispensing: Varifocals",
   COLLECTION: "Collection",
-  "EGÖS": "E-GOS",
+  EGOS: "E-GOS",
   FILE_PULLING: "File Pulling",
   SCANNING: "Scanning",
 };
@@ -17,7 +17,7 @@ export const TASK_DURATIONS: Record<string, number> = {
   DISPENSING_SINGLE_VISION: 30,
   DISPENSING_VARIFOCALS: 30,
   COLLECTION: 10,
-  "EGÖS": 30,
+  EGOS: 30,
   FILE_PULLING: 60,
   SCANNING: 60,
 };
