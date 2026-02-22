@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  build:
+  install-dependencies:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,5 +28,78 @@ jobs:
       - name: Generate Prisma client
         run: npm run db:generate
 
-      - name: Build frontend and backend
-        run: npm run build -- --filter=@bogcat/api --filter=@bogcat/web
+      - name: Cache workspace dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-node-modules
+          path: node_modules
+          if-no-files-found: error
+
+  test-prisma-schema-generation:
+    runs-on: ubuntu-latest
+    needs: install-dependencies
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Restore workspace dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: workspace-node-modules
+          path: node_modules
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+  build-backend-api:
+    runs-on: ubuntu-latest
+    needs: test-prisma-schema-generation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Restore workspace dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: workspace-node-modules
+          path: node_modules
+
+      - name: Build Backend (API)
+        run: npm run build -- --filter=@bogcat/api
+
+  build-frontend-web:
+    runs-on: ubuntu-latest
+    needs: test-prisma-schema-generation
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Restore workspace dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: workspace-node-modules
+          path: node_modules
+
+      - name: Build Frontend (Web)
+        run: npm run build -- --filter=@bogcat/web

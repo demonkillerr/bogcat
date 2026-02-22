@@ -1,6 +1,8 @@
 node_modules
 .next
 dist
+.turbo
+**/.turbo
 *.db
 *.db-journal
 .env

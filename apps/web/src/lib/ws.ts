@@ -32,5 +32,7 @@ export function disconnectWs() {
 
 export function addWsListener(fn: Listener) {
   listeners.add(fn);
-  return () => listeners.delete(fn);
+  return () => {
+    listeners.delete(fn);
+  };
 }

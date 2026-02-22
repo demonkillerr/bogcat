@@ -1,9 +1,8 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
-import { prisma } from "../index.js";
+import type { FastifyReply, FastifyRequest } from "fastify";
 
 export async function authenticate(
   request: FastifyRequest,
-  reply: Parameters<Parameters<FastifyInstance["addHook"]>[1]>[1]
+  reply: FastifyReply
 ) {
   try {
     await request.jwtVerify();
