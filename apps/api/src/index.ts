@@ -1,8 +1,16 @@
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+import { config } from "dotenv";
+
+// Load .env from the monorepo root (relative to this file, not CWD)
+const __dirname = dirname(fileURLToPath(import.meta.url));
+config({ path: resolve(__dirname, "../../../.env") });
+
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import jwtPlugin from "@fastify/jwt";
 import websocket from "@fastify/websocket";
-import { PrismaClient } from "@bogcat/db";
+import { PrismaClient } from "@prisma/client";
 
 import { authRoutes } from "./routes/auth.js";
 import { colleagueRoutes } from "./routes/colleagues.js";
