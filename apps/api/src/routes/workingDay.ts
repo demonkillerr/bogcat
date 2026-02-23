@@ -137,6 +137,110 @@ export async function workingDayRoutes(app: FastifyInstance) {
       return reply.send(cod);
     }
   );
+
+  // GET /working-days/stats?weekOf=YYYY-MM-DD — weekly statistics (admin only)
+  app.get<{ Querystring: { weekOf?: string } }>(
+    "/stats",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const role = (request.user as { role: string }).role;
+      if (role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only admin can view statistics" });
+      }
+
+      // Determine the week: Monday–Sunday containing the given date (default: this week)
+      const anchor = request.query.weekOf ? new Date(request.query.weekOf) : new Date();
+      const day = anchor.getDay(); // 0=Sun
+      const diffToMon = day === 0 ? -6 : 1 - day;
+      const monday = new Date(anchor);
+      monday.setDate(anchor.getDate() + diffToMon);
+      monday.setHours(0, 0, 0, 0);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 7); // exclusive upper bound
+
+      // Fetch all working days in the range with full relations
+      const days = await prisma.workingDay.findMany({
+        where: { date: { gte: monday, lt: sunday } },
+        include: {
+          colleagues: { include: { colleague: true } },
+          taskAllocations: { include: { colleague: true } },
+          patientArrivals: true,
+        },
+        orderBy: { date: "asc" },
+      });
+
+      // Build per-day summaries
+      const dailySummaries = days.map((wd) => ({
+        date: wd.date,
+        colleaguesWorking: wd.colleagues.map((cod) => ({
+          name: cod.colleague.name,
+          type: cod.colleague.type,
+          onLunch: cod.onLunch,
+          lunchStartedAt: cod.lunchStartedAt,
+        })),
+        tasks: wd.taskAllocations.map((ta) => ({
+          taskType: ta.taskType,
+          colleagueName: ta.colleague.name,
+          status: ta.status,
+          allocatedAt: ta.allocatedAt,
+          durationMins: ta.durationMins,
+        })),
+        arrivals: wd.patientArrivals.map((pa) => ({
+          name: pa.name,
+          reason: pa.reason,
+          arrivedAt: pa.arrivedAt,
+        })),
+      }));
+
+      // Aggregates across the week
+      const allTasks = days.flatMap((d) => d.taskAllocations);
+      const allArrivals = days.flatMap((d) => d.patientArrivals);
+
+      // Tasks by type
+      const tasksByType: Record<string, number> = {};
+      for (const t of allTasks) {
+        tasksByType[t.taskType] = (tasksByType[t.taskType] ?? 0) + 1;
+      }
+
+      // Tasks by colleague
+      const tasksByColleague: Record<string, Record<string, number>> = {};
+      for (const t of allTasks) {
+        const name = t.colleague.name;
+        if (!tasksByColleague[name]) tasksByColleague[name] = {};
+        tasksByColleague[name][t.taskType] = (tasksByColleague[name][t.taskType] ?? 0) + 1;
+      }
+
+      // Arrivals by reason
+      const arrivalsByReason: Record<string, number> = {};
+      for (const a of allArrivals) {
+        arrivalsByReason[a.reason] = (arrivalsByReason[a.reason] ?? 0) + 1;
+      }
+
+      // Lunch data
+      const allLunches = days.flatMap((d) =>
+        d.colleagues
+          .filter((cod) => cod.lunchStartedAt)
+          .map((cod) => ({
+            date: d.date,
+            colleagueName: cod.colleague.name,
+            lunchStartedAt: cod.lunchStartedAt,
+          }))
+      );
+
+      return reply.send({
+        weekStart: monday.toISOString(),
+        weekEnd: new Date(sunday.getTime() - 1).toISOString(),
+        totalDays: days.length,
+        totalTasks: allTasks.length,
+        totalArrivals: allArrivals.length,
+        tasksByType,
+        tasksByColleague,
+        arrivalsByReason,
+        lunches: allLunches,
+        dailySummaries,
+      });
+    }
+  );
 }
 
 function startOfToday(): Date {
