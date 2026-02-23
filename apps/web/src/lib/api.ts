@@ -133,4 +133,10 @@ export const api = {
 
   deleteColleague: (id: string) =>
     apiFetch(`/colleagues/${id}`, { method: "DELETE" }),
+
+  toggleLunch: (colleagueOnDayId: string, onLunch: boolean) =>
+    apiFetch("/working-days/lunch", {
+      method: "POST",
+      body: JSON.stringify({ colleagueOnDayId, onLunch }),
+    }),
 };

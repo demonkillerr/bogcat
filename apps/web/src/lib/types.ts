@@ -21,7 +21,7 @@ export interface WorkingDay {
   id: string;
   date: string;
   locked: boolean;
-  colleagues: { id: string; colleague: Colleague }[];
+  colleagues: { id: string; colleague: Colleague; onLunch: boolean; lunchStartedAt: string | null }[];
   taskAllocations: TaskAllocation[];
 }
 
