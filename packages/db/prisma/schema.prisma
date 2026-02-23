@@ -66,9 +66,11 @@ model WorkingDay {
 }
 
 model ColleagueOnDay {
-  id           String     @id @default(cuid())
-  workingDayId String
-  colleagueId  String
+  id             String    @id @default(cuid())
+  workingDayId   String
+  colleagueId    String
+  onLunch        Boolean   @default(false)
+  lunchStartedAt DateTime?
 
   workingDay WorkingDay @relation(fields: [workingDayId], references: [id])
   colleague  Colleague  @relation(fields: [colleagueId], references: [id])
