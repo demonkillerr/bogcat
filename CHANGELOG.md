@@ -20,3 +20,4 @@
 
 # v0.1.5
 - Allow admin and coordinator to assign lunch breaks (12:30PM to 2:30PM)
+- Allow admin to see weekly statistics from the new statistics tab
