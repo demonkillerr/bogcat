@@ -49,6 +49,7 @@ model Colleague {
 
 enum ColleagueType {
   OC
+  SENIOR_OC
   MANAGER
 }
 

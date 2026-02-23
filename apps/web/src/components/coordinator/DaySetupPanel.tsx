@@ -18,6 +18,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { Colleague } from "@/lib/types";
 import { api } from "@/lib/api";
+import { COLLEAGUE_TYPE_LABELS } from "@/lib/constants";
 
 interface Props {
   allColleagues: Colleague[];
@@ -47,7 +48,7 @@ function SortableItem({ colleague }: { colleague: Colleague }) {
     >
       <span className="text-slate-400 text-xs">⠿</span>
       <span className="text-sm font-medium">{colleague.name}</span>
-      <span className="ml-auto text-xs text-slate-400">{colleague.type === "OC" ? "OC" : "Manager"}</span>
+      <span className="ml-auto text-xs text-slate-400">{COLLEAGUE_TYPE_LABELS[colleague.type] ?? colleague.type}</span>
     </div>
   );
 }
@@ -132,7 +133,7 @@ export default function DaySetupPanel({
                   className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2"
                 >
                   <span className="text-sm">{c.name}</span>
-                  <span className="text-xs text-slate-400">{c.type === "OC" ? "OC" : "Manager"}</span>
+                  <span className="text-xs text-slate-400">{COLLEAGUE_TYPE_LABELS[c.type] ?? c.type}</span>
                   {!locked && (
                     <button
                       onClick={() => addColleague(c)}
@@ -160,7 +161,7 @@ export default function DaySetupPanel({
                   className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-4 py-2"
                 >
                   <span className="text-sm font-medium">{c.name}</span>
-                  <span className="text-xs text-slate-400 ml-auto">{c.type === "OC" ? "OC" : "Manager"}</span>
+                  <span className="text-xs text-slate-400 ml-auto">{COLLEAGUE_TYPE_LABELS[c.type] ?? c.type}</span>
                 </div>
               ))}
               {working.length === 0 && (

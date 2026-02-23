@@ -15,7 +15,7 @@ export async function colleagueRoutes(app: FastifyInstance) {
   );
 
   // POST /colleagues — admin only: add a new colleague
-  app.post<{ Body: { name: string; type: "OC" | "MANAGER"; isAssignable?: boolean } }>(
+  app.post<{ Body: { name: string; type: "OC" | "SENIOR_OC" | "MANAGER"; isAssignable?: boolean } }>(
     "/",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
@@ -44,7 +44,7 @@ export async function colleagueRoutes(app: FastifyInstance) {
   );
 
   // PATCH /colleagues/:id — admin only: update colleague role/assignability
-  app.patch<{ Params: { id: string }; Body: { type?: "OC" | "MANAGER"; isAssignable?: boolean } }>(
+  app.patch<{ Params: { id: string }; Body: { type?: "OC" | "SENIOR_OC" | "MANAGER"; isAssignable?: boolean } }>(
     "/:id",
     { preHandler: [app.authenticate] },
     async (request, reply) => {

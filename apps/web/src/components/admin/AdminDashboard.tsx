@@ -24,7 +24,7 @@ export default function AdminDashboard() {
 
   // Settings tab state
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<"OC" | "MANAGER">("OC");
+  const [newType, setNewType] = useState<"OC" | "SENIOR_OC" | "MANAGER">("OC");
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -319,10 +319,11 @@ export default function AdminDashboard() {
                 <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
                 <select
                   value={newType}
-                  onChange={(e) => setNewType(e.target.value as "OC" | "MANAGER")}
+                  onChange={(e) => setNewType(e.target.value as "OC" | "SENIOR_OC" | "MANAGER")}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="OC">Optical Consultant</option>
+                  <option value="SENIOR_OC">Senior OC</option>
                   <option value="MANAGER">Manager</option>
                 </select>
               </div>
@@ -362,7 +363,7 @@ export default function AdminDashboard() {
                       <select
                         value={c.type}
                         onChange={async (e) => {
-                          const newRole = e.target.value as "OC" | "MANAGER";
+                          const newRole = e.target.value as "OC" | "SENIOR_OC" | "MANAGER";
                           try {
                             await api.updateColleague(c.id, { type: newRole });
                             setAllColleagues((prev) =>
@@ -375,6 +376,7 @@ export default function AdminDashboard() {
                         className="text-xs border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="OC">OC</option>
+                        <option value="SENIOR_OC">Senior OC</option>
                         <option value="MANAGER">Manager</option>
                       </select>
                       <label className="flex items-center gap-1.5 text-xs text-slate-500">

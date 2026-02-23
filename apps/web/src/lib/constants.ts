@@ -29,3 +29,9 @@ export const ARRIVAL_REASON_LABELS: Record<string, string> = {
   COLLECTION: "Collection",
   ADJUSTMENT: "Adjustment",
 };
+
+export const COLLEAGUE_TYPE_LABELS: Record<string, string> = {
+  OC: "OC",
+  SENIOR_OC: "Senior OC",
+  MANAGER: "Manager",
+};

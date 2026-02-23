@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { TASK_LABELS, TASK_TYPES } from "@/lib/constants";
+import { TASK_LABELS, TASK_TYPES, COLLEAGUE_TYPE_LABELS } from "@/lib/constants";
 import { useCountdown } from "@/hooks/useCountdown";
 import type { Colleague, TaskAllocation } from "@/lib/types";
 import { api } from "@/lib/api";
@@ -86,7 +86,7 @@ export default function ColleagueRow({ colleague, activeTask, workingDayId, onUp
       <div className="flex items-center justify-between mb-2">
         <div>
           <span className="font-semibold text-slate-800">{colleague.name}</span>
-          <span className="ml-2 text-xs text-slate-400">{colleague.type === "OC" ? "OC" : "Manager"}</span>
+          <span className="ml-2 text-xs text-slate-400">{COLLEAGUE_TYPE_LABELS[colleague.type] ?? colleague.type}</span>
         </div>
         <StatusBadge free={isFree} />
       </div>
