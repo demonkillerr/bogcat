@@ -40,6 +40,14 @@ There are different types of collegues.
 - Oran
 - Sophie
 - Fiona
+- Emama
+- Giamba
+- Aliza
+- Emma-loise
+- Promise
+- Hans
+- Kira
+- Tamar
 
 ### Managers
 - Iqbal

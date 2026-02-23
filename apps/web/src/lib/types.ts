@@ -34,3 +34,11 @@ export interface PatientArrival {
   arrivedAt: string;
   acknowledged: boolean;
 }
+
+export interface ActiveSession {
+  id: string;
+  userId: string;
+  username: string;
+  role: string;
+  createdAt: string;
+}

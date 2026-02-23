@@ -29,17 +29,19 @@ export async function workingDayRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate] },
     async (request, reply) => {
       const role = (request.user as { role: string }).role;
-      if (role !== "COORDINATOR") {
-        return reply.code(403).send({ error: "Only the coordinator can set up the working day" });
+      if (role !== "COORDINATOR" && role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only the coordinator or admin can set up the working day" });
       }
 
-      // Server-side 10AM lock check
-      const now = new Date();
-      const lockHour = 10;
-      if (now.getHours() >= lockHour) {
-        return reply
-          .code(403)
-          .send({ error: "Working day setup is locked after 10:00 AM" });
+      // Server-side 10AM lock check (admin bypasses)
+      if (role !== "ADMIN") {
+        const now = new Date();
+        const lockHour = 10;
+        if (now.getHours() >= lockHour) {
+          return reply
+            .code(403)
+            .send({ error: "Working day setup is locked after 10:00 AM" });
+        }
       }
 
       const today = startOfToday();

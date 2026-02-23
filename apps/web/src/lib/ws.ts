@@ -1,5 +1,7 @@
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:4000/ws";
 
+import { getUserId, clearAuth } from "./api";
+
 let socket: WebSocket | null = null;
 type Listener = (msg: { type: string; payload: unknown }) => void;
 const listeners = new Set<Listener>();
@@ -18,6 +20,17 @@ export function connectWs() {
   socket.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data as string);
+
+      // Auto-redirect if this user was force-logged out
+      if (msg.type === "FORCE_LOGOUT" && typeof window !== "undefined") {
+        const myUserId = getUserId();
+        if (myUserId && msg.payload?.userId === myUserId) {
+          clearAuth();
+          window.location.href = "/";
+          return;
+        }
+      }
+
       listeners.forEach((fn) => fn(msg));
     } catch {
       // ignore malformed messages
