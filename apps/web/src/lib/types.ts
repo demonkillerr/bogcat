@@ -1,7 +1,7 @@
 export interface Colleague {
   id: string;
   name: string;
-  type: "OC" | "MANAGER";
+  type: "OC" | "SENIOR_OC" | "MANAGER";
   isAssignable: boolean;
 }
 

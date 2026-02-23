@@ -118,4 +118,19 @@ export const api = {
 
   adminLogoutUser: (userId: string) =>
     apiFetch(`/auth/sessions/${userId}`, { method: "DELETE" }),
+
+  addColleague: (payload: { name: string; type: "OC" | "SENIOR_OC" | "MANAGER"; isAssignable?: boolean }) =>
+    apiFetch("/colleagues", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateColleague: (id: string, payload: { type?: "OC" | "SENIOR_OC" | "MANAGER"; isAssignable?: boolean }) =>
+    apiFetch(`/colleagues/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteColleague: (id: string) =>
+    apiFetch(`/colleagues/${id}`, { method: "DELETE" }),
 };

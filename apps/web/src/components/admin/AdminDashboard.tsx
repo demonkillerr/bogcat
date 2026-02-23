@@ -20,7 +20,15 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"coordinator" | "sessions">("coordinator");
+  const [activeTab, setActiveTab] = useState<"coordinator" | "sessions" | "settings">("coordinator");
+
+  // Settings tab state
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<"OC" | "SENIOR_OC" | "MANAGER">("OC");
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const role = getRole();
@@ -51,7 +59,7 @@ export default function AdminDashboard() {
     connectWs();
 
     const remove = addWsListener((msg) => {
-      if (msg.type === "STATUS_CHANGED") {
+      if (msg.type === "STATUS_CHANGED" || msg.type === "DAY_SETUP_CHANGED") {
         fetchData();
       }
       if (msg.type === "PATIENT_ARRIVED") {
@@ -132,6 +140,16 @@ export default function AdminDashboard() {
             </span>
           )}
         </button>
+        <button
+          onClick={() => setActiveTab("settings")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+            activeTab === "settings"
+              ? "bg-blue-600 text-white"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Settings
+        </button>
       </div>
 
       {activeTab === "coordinator" && (
@@ -153,13 +171,7 @@ export default function AdminDashboard() {
               workingDayId={workingDay?.id ?? null}
               currentWorking={workingColleagues}
               locked={false}
-              onSaved={(updated) =>
-                setWorkingDay((prev) =>
-                  prev
-                    ? { ...prev, colleagues: updated.map((c) => ({ id: c.id, colleague: c })) }
-                    : null
-                )
-              }
+              onSaved={() => fetchData()}
             />
           </div>
 
@@ -260,6 +272,156 @@ export default function AdminDashboard() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === "settings" && (
+        <div className="space-y-6">
+          {/* Add new colleague */}
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">Add Colleague</h2>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setSettingsError(null);
+                setSettingsSuccess(null);
+                if (!newName.trim()) {
+                  setSettingsError("Name is required");
+                  return;
+                }
+                setSavingSettings(true);
+                try {
+                  await api.addColleague({ name: newName.trim(), type: newType });
+                  setAllColleagues(await api.getColleagues());
+                  setNewName("");
+                  setNewType("OC");
+                  setSettingsSuccess(`${newName.trim()} added successfully`);
+                  setTimeout(() => setSettingsSuccess(null), 3000);
+                } catch (err: unknown) {
+                  setSettingsError(err instanceof Error ? err.message : "Failed to add colleague");
+                } finally {
+                  setSavingSettings(false);
+                }
+              }}
+              className="flex flex-wrap items-end gap-3"
+            >
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="e.g. John Smith"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                <select
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value as "OC" | "SENIOR_OC" | "MANAGER")}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="OC">Optical Consultant</option>
+                  <option value="SENIOR_OC">Senior OC</option>
+                  <option value="MANAGER">Manager</option>
+                </select>
+              </div>
+              <button
+                type="submit"
+                disabled={savingSettings}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2 rounded-lg transition"
+              >
+                {savingSettings ? "Adding…" : "Add Colleague"}
+              </button>
+            </form>
+            {settingsError && (
+              <p className="mt-3 text-sm text-red-600">{settingsError}</p>
+            )}
+            {settingsSuccess && (
+              <p className="mt-3 text-sm text-green-600">✓ {settingsSuccess}</p>
+            )}
+          </div>
+
+          {/* Colleague list */}
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">
+              All Colleagues <span className="text-slate-400 text-sm font-normal">({allColleagues.length})</span>
+            </h2>
+
+            {allColleagues.length === 0 ? (
+              <p className="text-sm text-slate-400 italic">No colleagues added yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {allColleagues.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between border border-slate-200 rounded-xl px-5 py-3"
+                  >
+                    <span className="font-medium text-slate-800">{c.name}</span>
+                    <div className="flex items-center gap-3">
+                      <select
+                        value={c.type}
+                        onChange={async (e) => {
+                          const newRole = e.target.value as "OC" | "SENIOR_OC" | "MANAGER";
+                          try {
+                            await api.updateColleague(c.id, { type: newRole });
+                            setAllColleagues((prev) =>
+                              prev.map((col) => col.id === c.id ? { ...col, type: newRole } : col)
+                            );
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className="text-xs border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="OC">OC</option>
+                        <option value="SENIOR_OC">Senior OC</option>
+                        <option value="MANAGER">Manager</option>
+                      </select>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <input
+                          type="checkbox"
+                          checked={c.isAssignable}
+                          onChange={async (e) => {
+                            const isAssignable = e.target.checked;
+                            try {
+                              await api.updateColleague(c.id, { isAssignable });
+                              setAllColleagues((prev) =>
+                                prev.map((col) => col.id === c.id ? { ...col, isAssignable } : col)
+                              );
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        Assignable
+                      </label>
+                      <button
+                      onClick={async () => {
+                        if (!confirm(`Remove ${c.name}? This will also delete their task history.`)) return;
+                        setDeletingId(c.id);
+                        try {
+                          await api.deleteColleague(c.id);
+                          setAllColleagues((prev) => prev.filter((col) => col.id !== c.id));
+                        } catch (err) {
+                          console.error(err);
+                        } finally {
+                          setDeletingId(null);
+                        }
+                      }}
+                      disabled={deletingId === c.id}
+                      className="text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg font-semibold transition disabled:opacity-60"
+                    >
+                      {deletingId === c.id ? "Removing…" : "Remove"}
+                    </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </DashboardLayout>
