@@ -45,6 +45,20 @@ export async function taskRoutes(app: FastifyInstance) {
         return reply.code(409).send({ error: "Colleague is already busy with another task" });
       }
 
+      // Check colleague is not on lunch
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const onDay = await prisma.colleagueOnDay.findFirst({
+        where: {
+          colleagueId,
+          workingDay: { date: today },
+          onLunch: true,
+        },
+      });
+      if (onDay) {
+        return reply.code(409).send({ error: "Colleague is currently on lunch break" });
+      }
+
       const durationMins = TASK_DURATIONS[taskType] ?? 15;
       const allocation = await prisma.taskAllocation.create({
         data: { workingDayId, colleagueId, taskType, durationMins },

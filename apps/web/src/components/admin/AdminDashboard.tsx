@@ -6,6 +6,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import DaySetupPanel from "@/components/coordinator/DaySetupPanel";
 import ColleagueRow from "@/components/coordinator/ColleagueRow";
 import ArrivalAlerts from "@/components/coordinator/ArrivalAlerts";
+import WeeklyStats from "@/components/admin/WeeklyStats";
 import { api, getRole } from "@/lib/api";
 import { connectWs, addWsListener } from "@/lib/ws";
 import type { Colleague, WorkingDay, PatientArrival, ActiveSession } from "@/lib/types";
@@ -20,7 +21,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"coordinator" | "sessions" | "settings">("coordinator");
+  const [activeTab, setActiveTab] = useState<"coordinator" | "sessions" | "settings" | "statistics">("coordinator");
 
   // Settings tab state
   const [newName, setNewName] = useState("");
@@ -99,6 +100,12 @@ export default function AdminDashboard() {
   }
 
   const workingColleagues = (workingDay?.colleagues ?? []).map((cod) => cod.colleague);
+  const lunchMap = new Map(
+    (workingDay?.colleagues ?? []).map((cod) => [
+      cod.colleague.id,
+      { onLunch: cod.onLunch, lunchStartedAt: cod.lunchStartedAt },
+    ])
+  );
   const activeTasks = workingDay?.taskAllocations ?? [];
 
   function getActiveTask(colleagueId: string) {
@@ -108,6 +115,13 @@ export default function AdminDashboard() {
       ) ?? null
     );
   }
+
+  const lunchEntries = (workingDay?.colleagues ?? []).map((cod) => ({
+    codId: cod.id,
+    colleague: cod.colleague,
+    onLunch: cod.onLunch,
+    lunchStartedAt: cod.lunchStartedAt,
+  }));
 
   const assignableWorking = workingColleagues.filter((c) => c.isAssignable);
 
@@ -150,6 +164,16 @@ export default function AdminDashboard() {
         >
           Settings
         </button>
+        <button
+          onClick={() => setActiveTab("statistics")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+            activeTab === "statistics"
+              ? "bg-blue-600 text-white"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Statistics
+        </button>
       </div>
 
       {activeTab === "coordinator" && (
@@ -172,6 +196,8 @@ export default function AdminDashboard() {
               currentWorking={workingColleagues}
               locked={false}
               onSaved={() => fetchData()}
+              lunchEntries={lunchEntries}
+              onLunchToggled={fetchData}
             />
           </div>
 
@@ -207,6 +233,8 @@ export default function AdminDashboard() {
                       activeTask={getActiveTask(c.id)}
                       workingDayId={workingDay.id}
                       onUpdated={fetchData}
+                      onLunch={lunchMap.get(c.id)?.onLunch}
+                      lunchStartedAt={lunchMap.get(c.id)?.lunchStartedAt}
                     />
                   ))}
                 </div>
@@ -424,6 +452,8 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {activeTab === "statistics" && <WeeklyStats />}
     </DashboardLayout>
   );
 }

@@ -11,10 +11,12 @@ interface Props {
   activeTask: TaskAllocation | null;
   workingDayId: string;
   onUpdated: () => void;
+  onLunch?: boolean;
+  lunchStartedAt?: string | null;
 }
 
-export default function ColleagueRow({ colleague, activeTask, workingDayId, onUpdated }: Props) {
-  const isFree = !activeTask;
+export default function ColleagueRow({ colleague, activeTask, workingDayId, onUpdated, onLunch, lunchStartedAt }: Props) {
+  const isFree = !activeTask && !onLunch;
   const [assigning, setAssigning] = useState(false);
   const [selectedTask, setSelectedTask] = useState<string>(TASK_TYPES[0]);
   const [extendMins, setExtendMins] = useState(10);
@@ -78,9 +80,11 @@ export default function ColleagueRow({ colleague, activeTask, workingDayId, onUp
   return (
     <div
       className={`rounded-xl border p-4 shadow-sm transition ${
-        isFree
-          ? "bg-green-50 border-green-200"
-          : "bg-red-50 border-red-200"
+        onLunch
+          ? "bg-yellow-50 border-yellow-200"
+          : isFree
+            ? "bg-green-50 border-green-200"
+            : "bg-red-50 border-red-200"
       }`}
     >
       <div className="flex items-center justify-between mb-2">
@@ -88,11 +92,19 @@ export default function ColleagueRow({ colleague, activeTask, workingDayId, onUp
           <span className="font-semibold text-slate-800">{colleague.name}</span>
           <span className="ml-2 text-xs text-slate-400">{COLLEAGUE_TYPE_LABELS[colleague.type] ?? colleague.type}</span>
         </div>
-        <StatusBadge free={isFree} />
+        <StatusBadge free={isFree} onLunch={!!onLunch} />
       </div>
 
+      {/* Lunch state */}
+      {onLunch && lunchStartedAt && (
+        <div className="mb-3">
+          <p className="text-sm text-yellow-700 font-medium">🍽 Lunch Break</p>
+          <LunchCountdown startedAt={lunchStartedAt} />
+        </div>
+      )}
+
       {/* Busy state */}
-      {!isFree && activeTask && (
+      {!onLunch && !isFree && activeTask && (
         <div className="mb-3">
           <p className="text-sm text-slate-700 font-medium">
             {TASK_LABELS[activeTask.taskType] ?? activeTask.taskType}
@@ -101,10 +113,10 @@ export default function ColleagueRow({ colleague, activeTask, workingDayId, onUp
         </div>
       )}
 
-      {/* Actions */}
-      {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+      {/* Actions — hidden during lunch */}
+      {!onLunch && error && <p className="text-xs text-red-600 mb-2">{error}</p>}
 
-      {isFree && !assigning && (
+      {!onLunch && isFree && !assigning && (
         <button
           onClick={() => setAssigning(true)}
           className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg font-semibold transition"
@@ -113,7 +125,7 @@ export default function ColleagueRow({ colleague, activeTask, workingDayId, onUp
         </button>
       )}
 
-      {assigning && (
+      {!onLunch && assigning && (
         <div className="space-y-2">
           <select
             value={selectedTask}
@@ -154,7 +166,7 @@ export default function ColleagueRow({ colleague, activeTask, workingDayId, onUp
         </div>
       )}
 
-      {!isFree && !assigning && (
+      {!onLunch && !isFree && !assigning && (
         <div className="flex flex-wrap gap-2 mt-1">
           <button
             onClick={handleComplete}
@@ -193,7 +205,14 @@ export default function ColleagueRow({ colleague, activeTask, workingDayId, onUp
   );
 }
 
-function StatusBadge({ free }: { free: boolean }) {
+function StatusBadge({ free, onLunch }: { free: boolean; onLunch: boolean }) {
+  if (onLunch) {
+    return (
+      <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-700 border border-yellow-300">
+        LUNCH
+      </span>
+    );
+  }
   return (
     <span
       className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
@@ -212,6 +231,17 @@ function CountdownDisplay({ task }: { task: TaskAllocation }) {
   return (
     <span
       className={`text-sm font-mono font-bold ${overdue ? "text-red-600 animate-pulse" : "text-slate-600"}`}
+    >
+      {overdue ? `Overdue ${display}` : `${display} remaining`}
+    </span>
+  );
+}
+
+function LunchCountdown({ startedAt }: { startedAt: string }) {
+  const { display, overdue } = useCountdown(startedAt, 30, null);
+  return (
+    <span
+      className={`text-sm font-mono font-bold ${overdue ? "text-orange-600 animate-pulse" : "text-yellow-700"}`}
     >
       {overdue ? `Overdue ${display}` : `${display} remaining`}
     </span>
