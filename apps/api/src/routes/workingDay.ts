@@ -91,7 +91,7 @@ export async function workingDayRoutes(app: FastifyInstance) {
   );
 
   // POST /working-days/lunch — toggle lunch for a colleague
-  app.post<{ Body: { colleagueOnDayId: string; onLunch: boolean } }>(
+  app.post<{ Body: { colleagueOnDayId: string; onLunch: boolean; startTime?: string } }>(
     "/lunch",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
@@ -100,14 +100,25 @@ export async function workingDayRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only the coordinator or admin can manage lunch breaks" });
       }
 
-      const { colleagueOnDayId, onLunch } = request.body;
+      const { colleagueOnDayId, onLunch, startTime } = request.body;
+
+      // Build the lunchStartedAt value
+      let lunchStartedAt: Date | null = null;
+      if (onLunch) {
+        if (startTime) {
+          // startTime is "HH:MM" — combine with today's date
+          const [h, m] = startTime.split(":").map(Number);
+          lunchStartedAt = new Date();
+          lunchStartedAt.setHours(h, m, 0, 0);
+        } else {
+          lunchStartedAt = new Date();
+        }
+      }
 
       // Validate time window: lunch can only start between 12:30 and 14:30 (admin bypasses)
       if (onLunch && role !== "ADMIN") {
-        const now = new Date();
-        const hours = now.getHours();
-        const mins = now.getMinutes();
-        const currentMins = hours * 60 + mins;
+        const checkTime = lunchStartedAt!;
+        const currentMins = checkTime.getHours() * 60 + checkTime.getMinutes();
         if (currentMins < 12 * 60 + 30 || currentMins >= 14 * 60 + 30) {
           return reply.code(400).send({ error: "Lunch breaks can only be started between 12:30 PM and 2:30 PM" });
         }
@@ -117,7 +128,7 @@ export async function workingDayRoutes(app: FastifyInstance) {
         where: { id: colleagueOnDayId },
         data: {
           onLunch,
-          lunchStartedAt: onLunch ? new Date() : null,
+          lunchStartedAt,
         },
         include: { colleague: true },
       });

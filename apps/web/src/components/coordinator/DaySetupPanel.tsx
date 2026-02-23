@@ -76,6 +76,7 @@ export default function DaySetupPanel({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [togglingLunch, setTogglingLunch] = useState<string | null>(null);
+  const [lunchTimes, setLunchTimes] = useState<Record<string, string>>({});
 
   const available = allColleagues.filter((c) => !working.some((w) => w.id === c.id));
 
@@ -228,11 +229,25 @@ export default function DaySetupPanel({
                       {new Date(entry.lunchStartedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
+                  {!entry.onLunch && (
+                    <input
+                      type="time"
+                      value={lunchTimes[entry.codId] ?? ""}
+                      onChange={(e) =>
+                        setLunchTimes((prev) => ({ ...prev, [entry.codId]: e.target.value }))
+                      }
+                      min="12:30"
+                      max="14:30"
+                      className="text-xs border border-slate-300 rounded px-1.5 py-1 w-[5.5rem] focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      title="Optional: set a specific start time"
+                    />
+                  )}
                   <button
                     onClick={async () => {
                       setTogglingLunch(entry.codId);
                       try {
-                        await api.toggleLunch(entry.codId, !entry.onLunch);
+                        const startTime = !entry.onLunch ? lunchTimes[entry.codId] || undefined : undefined;
+                        await api.toggleLunch(entry.codId, !entry.onLunch, startTime);
                         onLunchToggled?.();
                       } catch (err: unknown) {
                         setError(err instanceof Error ? err.message : "Failed to toggle lunch");
