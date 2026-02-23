@@ -139,4 +139,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ colleagueOnDayId, onLunch, startTime }),
     }),
+
+  getWeeklyStats: (weekOf?: string) =>
+    apiFetch(`/working-days/stats${weekOf ? `?weekOf=${weekOf}` : ""}`),
 };

@@ -42,3 +42,21 @@ export interface ActiveSession {
   role: string;
   createdAt: string;
 }
+
+export interface WeeklyStats {
+  weekStart: string;
+  weekEnd: string;
+  totalDays: number;
+  totalTasks: number;
+  totalArrivals: number;
+  tasksByType: Record<string, number>;
+  tasksByColleague: Record<string, Record<string, number>>;
+  arrivalsByReason: Record<string, number>;
+  lunches: { date: string; colleagueName: string; lunchStartedAt: string }[];
+  dailySummaries: {
+    date: string;
+    colleaguesWorking: { name: string; type: string; onLunch: boolean; lunchStartedAt: string | null }[];
+    tasks: { taskType: string; colleagueName: string; status: string; allocatedAt: string; durationMins: number }[];
+    arrivals: { name: string; reason: string; arrivedAt: string }[];
+  }[];
+}
