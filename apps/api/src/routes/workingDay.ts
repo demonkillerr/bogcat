@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "../index.js";
+import { broadcast } from "../ws/handler.js";
 
 export async function workingDayRoutes(app: FastifyInstance) {
   // GET /working-days/today — get or create today's working day
@@ -70,6 +71,7 @@ export async function workingDayRoutes(app: FastifyInstance) {
         include: { colleagues: { include: { colleague: true } } },
       });
 
+      broadcast({ type: "DAY_SETUP_CHANGED", payload: { workingDayId: workingDay.id } });
       return reply.send(updated);
     }
   );

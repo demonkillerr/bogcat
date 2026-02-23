@@ -54,7 +54,7 @@ export default function CoordinatorDashboard() {
     connectWs();
 
     const remove = addWsListener((msg) => {
-      if (msg.type === "STATUS_CHANGED") {
+      if (msg.type === "STATUS_CHANGED" || msg.type === "DAY_SETUP_CHANGED") {
         fetchData();
       }
       if (msg.type === "PATIENT_ARRIVED") {
@@ -110,13 +110,7 @@ export default function CoordinatorDashboard() {
           workingDayId={workingDay?.id ?? null}
           currentWorking={workingColleagues}
           locked={locked}
-          onSaved={(updated) =>
-            setWorkingDay((prev) =>
-              prev
-                ? { ...prev, colleagues: updated.map((c) => ({ id: c.id, colleague: c })) }
-                : null
-            )
-          }
+          onSaved={() => fetchData()}
         />
       </div>
 
