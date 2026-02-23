@@ -99,6 +99,12 @@ export default function AdminDashboard() {
   }
 
   const workingColleagues = (workingDay?.colleagues ?? []).map((cod) => cod.colleague);
+  const lunchMap = new Map(
+    (workingDay?.colleagues ?? []).map((cod) => [
+      cod.colleague.id,
+      { onLunch: cod.onLunch, lunchStartedAt: cod.lunchStartedAt },
+    ])
+  );
   const activeTasks = workingDay?.taskAllocations ?? [];
 
   function getActiveTask(colleagueId: string) {
@@ -108,6 +114,13 @@ export default function AdminDashboard() {
       ) ?? null
     );
   }
+
+  const lunchEntries = (workingDay?.colleagues ?? []).map((cod) => ({
+    codId: cod.id,
+    colleague: cod.colleague,
+    onLunch: cod.onLunch,
+    lunchStartedAt: cod.lunchStartedAt,
+  }));
 
   const assignableWorking = workingColleagues.filter((c) => c.isAssignable);
 
@@ -172,6 +185,8 @@ export default function AdminDashboard() {
               currentWorking={workingColleagues}
               locked={false}
               onSaved={() => fetchData()}
+              lunchEntries={lunchEntries}
+              onLunchToggled={fetchData}
             />
           </div>
 
@@ -207,6 +222,8 @@ export default function AdminDashboard() {
                       activeTask={getActiveTask(c.id)}
                       workingDayId={workingDay.id}
                       onUpdated={fetchData}
+                      onLunch={lunchMap.get(c.id)?.onLunch}
+                      lunchStartedAt={lunchMap.get(c.id)?.lunchStartedAt}
                     />
                   ))}
                 </div>
