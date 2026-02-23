@@ -46,7 +46,8 @@ async function apiFetch(path: string, options: RequestInit = {}) {
 
   if (!res.ok) {
     // If session was revoked (force logout) or token expired, redirect to login
-    if (res.status === 401 && typeof window !== "undefined") {
+    // Skip for /auth/login — a 401 there means wrong credentials, not session revoked
+    if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/auth/login")) {
       clearAuth();
       window.location.href = "/";
       throw new Error("Session expired");
