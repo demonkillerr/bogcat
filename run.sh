@@ -5,8 +5,20 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+DB_FILE="${ROOT_DIR}/packages/db/dev.db"
+NODE_MODULES="${ROOT_DIR}/node_modules"
+
+# ── Fast path: everything already set up ────────────────────────────────
+if [ -d "$NODE_MODULES" ] && [ -f .env ] && [ -f "$DB_FILE" ]; then
+	echo "Everything is already set up. Starting development servers..."
+	npm run dev
+	exit 0
+fi
+
+# ── Fresh install path ──────────────────────────────────────────────────
 echo "Starting BOGCAT setup..."
 
+# Prerequisites
 if ! command -v node >/dev/null 2>&1; then
 	echo "Node.js is not installed. Please install Node.js 20+ and retry."
 	exit 1
@@ -23,6 +35,7 @@ if [ "$NODE_MAJOR" -lt 20 ]; then
 	exit 1
 fi
 
+# Install dependencies
 if [ -f package-lock.json ]; then
 	echo "Installing dependencies with npm ci..."
 	npm ci
@@ -31,6 +44,7 @@ else
 	npm install
 fi
 
+# Create .env if missing
 if [ ! -f .env ]; then
 	echo "Creating .env from defaults..."
 
@@ -50,11 +64,13 @@ EOF
 	echo "Default shared password for local login: ${DEV_PASSWORD}"
 fi
 
+# Fix placeholder DATABASE_URL if copied from .env.example
 if grep -q '/absolute/path/to/bogcat/packages/db/dev.db' .env; then
-	echo "🔧 Updating DATABASE_URL in .env to this machine's workspace path..."
+	echo "Updating DATABASE_URL in .env to this machine's workspace path..."
 	sed -i "s|file:/absolute/path/to/bogcat/packages/db/dev.db|file:${ROOT_DIR}/packages/db/dev.db|g" .env
 fi
 
+# Fill empty HASHED_PASSWORD
 if grep -q '^HASHED_PASSWORD=""' .env; then
 	echo "HASHED_PASSWORD is empty in .env. Generating a development password hash..."
 	DEV_PASSWORD="bogcat-dev-password"
@@ -63,14 +79,19 @@ if grep -q '^HASHED_PASSWORD=""' .env; then
 	echo "Default shared password for local login: ${DEV_PASSWORD}"
 fi
 
+# Generate Prisma client (always needed after a fresh npm install)
 echo "Generating Prisma client..."
 npm run db:generate
 
-echo "Applying Prisma migrations..."
-npx prisma migrate deploy --schema ./packages/db/prisma/schema.prisma
+# Create and seed the database if it doesn't exist
+if [ ! -f "$DB_FILE" ]; then
+	echo "Database not found. Applying migrations and seeding..."
 
-echo "Seeding database..."
-npm run db:seed
+	npx prisma migrate deploy --schema ./packages/db/prisma/schema.prisma
+
+	echo "Seeding database..."
+	npm run db:seed
+fi
 
 echo "Setup complete. Starting development servers..."
 npm run dev
