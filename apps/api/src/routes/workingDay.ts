@@ -150,17 +150,15 @@ export async function workingDayRoutes(app: FastifyInstance) {
 
       // Determine the week: Monday–Sunday containing the given date (default: this week)
       const anchor = request.query.weekOf ? new Date(request.query.weekOf) : new Date();
-      const day = anchor.getDay(); // 0=Sun
-      const diffToMon = day === 0 ? -6 : 1 - day;
-      const monday = new Date(anchor);
-      monday.setDate(anchor.getDate() + diffToMon);
-      monday.setHours(0, 0, 0, 0);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 7); // exclusive upper bound
+      const sundayStart = new Date(anchor);
+      sundayStart.setDate(anchor.getDate() - anchor.getDay()); // roll back to Sunday
+      sundayStart.setHours(0, 0, 0, 0);
+      const saturdayEnd = new Date(sundayStart);
+      saturdayEnd.setDate(sundayStart.getDate() + 7); // exclusive upper bound (next Sunday)
 
       // Fetch all working days in the range with full relations
       const days = await prisma.workingDay.findMany({
-        where: { date: { gte: monday, lt: sunday } },
+        where: { date: { gte: sundayStart, lt: saturdayEnd } },
         include: {
           colleagues: { include: { colleague: true } },
           taskAllocations: { include: { colleague: true } },
@@ -228,8 +226,8 @@ export async function workingDayRoutes(app: FastifyInstance) {
       );
 
       return reply.send({
-        weekStart: monday.toISOString(),
-        weekEnd: new Date(sunday.getTime() - 1).toISOString(),
+        weekStart: sundayStart.toISOString(),
+        weekEnd: new Date(saturdayEnd.getTime() - 1).toISOString(),
         totalDays: days.length,
         totalTasks: allTasks.length,
         totalArrivals: allArrivals.length,
