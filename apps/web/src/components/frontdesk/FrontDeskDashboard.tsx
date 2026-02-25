@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "@/components/DashboardLayout";
 import { api, getRole } from "@/lib/api";
+import { connectWs, addWsListener } from "@/lib/ws";
 import { ARRIVAL_REASON_LABELS } from "@/lib/constants";
 import type { PatientArrival, WorkingDay } from "@/lib/types";
 
@@ -43,6 +44,17 @@ export default function FrontDeskDashboard() {
 
   useEffect(() => {
     fetchData();
+    connectWs();
+
+    const remove = addWsListener((msg) => {
+      if (msg.type === "DAY_SETUP_CHANGED" || msg.type === "STATUS_CHANGED") {
+        fetchData();
+      }
+    });
+
+    return () => {
+      remove();
+    };
   }, [fetchData]);
 
   async function handleSubmit(e: React.FormEvent) {
