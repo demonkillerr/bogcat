@@ -58,6 +58,8 @@ export async function patientRoutes(app: FastifyInstance) {
         where: { id: request.params.id },
         data: { acknowledged: true },
       });
+
+      broadcast({ type: "PATIENT_ACKNOWLEDGED", payload: arrival });
       return reply.send(arrival);
     }
   );

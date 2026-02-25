@@ -79,6 +79,12 @@ export default function AdminDashboard() {
           return prev.some((x) => x.id === a.id) ? prev : [a, ...prev];
         });
       }
+      if (msg.type === "PATIENT_ACKNOWLEDGED") {
+        const a = msg.payload as PatientArrival;
+        setArrivals((prev) =>
+          prev.map((x) => (x.id === a.id ? { ...x, acknowledged: true } : x))
+        );
+      }
       if (msg.type === "SESSION_CHANGED") {
         api.getActiveSessions().then(setSessions).catch(console.error);
       }

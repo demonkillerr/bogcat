@@ -50,6 +50,18 @@ export default function FrontDeskDashboard() {
       if (msg.type === "DAY_SETUP_CHANGED" || msg.type === "STATUS_CHANGED") {
         fetchData();
       }
+      if (msg.type === "PATIENT_ARRIVED") {
+        setArrivals((prev) => {
+          const a = msg.payload as PatientArrival;
+          return prev.some((x) => x.id === a.id) ? prev : [a, ...prev];
+        });
+      }
+      if (msg.type === "PATIENT_ACKNOWLEDGED") {
+        const a = msg.payload as PatientArrival;
+        setArrivals((prev) =>
+          prev.map((x) => (x.id === a.id ? { ...x, acknowledged: true } : x))
+        );
+      }
     });
 
     return () => {
