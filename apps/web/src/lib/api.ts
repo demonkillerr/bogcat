@@ -100,9 +100,9 @@ export const api = {
 
   notifyArrival: (payload: {
     name: string;
-    dob: string;
     reason: string;
     workingDayId: string;
+    notes?: string;
   }) =>
     apiFetch("/patients/arrive", {
       method: "POST",
@@ -118,4 +118,28 @@ export const api = {
 
   adminLogoutUser: (userId: string) =>
     apiFetch(`/auth/sessions/${userId}`, { method: "DELETE" }),
+
+  addColleague: (payload: { name: string; type: "OC" | "SENIOR_OC" | "MANAGER"; isAssignable?: boolean }) =>
+    apiFetch("/colleagues", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateColleague: (id: string, payload: { type?: "OC" | "SENIOR_OC" | "MANAGER"; isAssignable?: boolean }) =>
+    apiFetch(`/colleagues/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteColleague: (id: string) =>
+    apiFetch(`/colleagues/${id}`, { method: "DELETE" }),
+
+  toggleLunch: (colleagueOnDayId: string, onLunch: boolean, startTime?: string) =>
+    apiFetch("/working-days/lunch", {
+      method: "POST",
+      body: JSON.stringify({ colleagueOnDayId, onLunch, startTime }),
+    }),
+
+  getWeeklyStats: (weekOf?: string) =>
+    apiFetch(`/working-days/stats${weekOf ? `?weekOf=${weekOf}` : ""}`),
 };

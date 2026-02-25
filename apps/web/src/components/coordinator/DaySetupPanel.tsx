@@ -18,6 +18,14 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { Colleague } from "@/lib/types";
 import { api } from "@/lib/api";
+import { COLLEAGUE_TYPE_LABELS } from "@/lib/constants";
+
+interface ColleagueOnDayEntry {
+  codId: string;
+  colleague: Colleague;
+  onLunch: boolean;
+  lunchStartedAt: string | null;
+}
 
 interface Props {
   allColleagues: Colleague[];
@@ -25,6 +33,8 @@ interface Props {
   currentWorking: Colleague[];
   locked: boolean;
   onSaved: (working: Colleague[]) => void;
+  lunchEntries?: ColleagueOnDayEntry[];
+  onLunchToggled?: () => void;
 }
 
 function SortableItem({ colleague }: { colleague: Colleague }) {
@@ -47,7 +57,7 @@ function SortableItem({ colleague }: { colleague: Colleague }) {
     >
       <span className="text-slate-400 text-xs">⠿</span>
       <span className="text-sm font-medium">{colleague.name}</span>
-      <span className="ml-auto text-xs text-slate-400">{colleague.type === "OC" ? "OC" : "Manager"}</span>
+      <span className="ml-auto text-xs text-slate-400">{COLLEAGUE_TYPE_LABELS[colleague.type] ?? colleague.type}</span>
     </div>
   );
 }
@@ -58,11 +68,15 @@ export default function DaySetupPanel({
   currentWorking,
   locked,
   onSaved,
+  lunchEntries,
+  onLunchToggled,
 }: Props) {
   const [working, setWorking] = useState<Colleague[]>(currentWorking);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [togglingLunch, setTogglingLunch] = useState<string | null>(null);
+  const [lunchTimes, setLunchTimes] = useState<Record<string, string>>({});
 
   const available = allColleagues.filter((c) => !working.some((w) => w.id === c.id));
 
@@ -116,7 +130,7 @@ export default function DaySetupPanel({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Available colleagues */}
         <div>
           <p className="text-sm font-medium text-slate-600 mb-2">
@@ -132,7 +146,7 @@ export default function DaySetupPanel({
                   className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2"
                 >
                   <span className="text-sm">{c.name}</span>
-                  <span className="text-xs text-slate-400">{c.type === "OC" ? "OC" : "Manager"}</span>
+                  <span className="text-xs text-slate-400">{COLLEAGUE_TYPE_LABELS[c.type] ?? c.type}</span>
                   {!locked && (
                     <button
                       onClick={() => addColleague(c)}
@@ -160,7 +174,7 @@ export default function DaySetupPanel({
                   className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-4 py-2"
                 >
                   <span className="text-sm font-medium">{c.name}</span>
-                  <span className="text-xs text-slate-400 ml-auto">{c.type === "OC" ? "OC" : "Manager"}</span>
+                  <span className="text-xs text-slate-400 ml-auto">{COLLEAGUE_TYPE_LABELS[c.type] ?? c.type}</span>
                 </div>
               ))}
               {working.length === 0 && (
@@ -188,6 +202,75 @@ export default function DaySetupPanel({
                 </div>
               </SortableContext>
             </DndContext>
+          )}
+        </div>
+
+        {/* Lunch Breaks */}
+        <div>
+          <p className="text-sm font-medium text-slate-600 mb-2">
+            🍽 Lunch Breaks
+          </p>
+          {!workingDayId || !lunchEntries || lunchEntries.length === 0 ? (
+            <p className="text-sm text-slate-400 italic">Save the working day first to manage lunch breaks.</p>
+          ) : (
+            <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+              {lunchEntries.filter((e) => e.colleague.isAssignable).map((entry) => (
+                <div
+                  key={entry.codId}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2 border ${
+                    entry.onLunch
+                      ? "bg-yellow-50 border-yellow-300"
+                      : "bg-slate-50 border-slate-200"
+                  }`}
+                >
+                  <span className="text-sm font-medium flex-1">{entry.colleague.name}</span>
+                  {entry.onLunch && entry.lunchStartedAt && (
+                    <span className="text-xs text-yellow-600 font-mono">
+                      {new Date(entry.lunchStartedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                  {!entry.onLunch && (
+                    <input
+                      type="time"
+                      value={lunchTimes[entry.codId] ?? ""}
+                      onChange={(e) =>
+                        setLunchTimes((prev) => ({ ...prev, [entry.codId]: e.target.value }))
+                      }
+                      min="12:30"
+                      max="14:30"
+                      className="text-xs border border-slate-300 rounded px-1.5 py-1 w-[5.5rem] focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                      title="Optional: set a specific start time"
+                    />
+                  )}
+                  <button
+                    onClick={async () => {
+                      setTogglingLunch(entry.codId);
+                      try {
+                        const startTime = !entry.onLunch ? lunchTimes[entry.codId] || undefined : undefined;
+                        await api.toggleLunch(entry.codId, !entry.onLunch, startTime);
+                        onLunchToggled?.();
+                      } catch (err: unknown) {
+                        setError(err instanceof Error ? err.message : "Failed to toggle lunch");
+                      } finally {
+                        setTogglingLunch(null);
+                      }
+                    }}
+                    disabled={togglingLunch === entry.codId}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition disabled:opacity-60 ${
+                      entry.onLunch
+                        ? "bg-slate-600 hover:bg-slate-700 text-white"
+                        : "bg-yellow-500 hover:bg-yellow-600 text-white"
+                    }`}
+                  >
+                    {togglingLunch === entry.codId
+                      ? "…"
+                      : entry.onLunch
+                        ? "End Lunch"
+                        : "Start Lunch"}
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

@@ -6,24 +6,24 @@ import { broadcast } from "../ws/handler.js";
 export async function patientRoutes(app: FastifyInstance) {
   // POST /patients/arrive — front desk notifies coordinator of new arrival
   app.post<{
-    Body: { name: string; dob: string; reason: ArrivalReason; workingDayId: string };
+    Body: { name: string; reason: ArrivalReason; workingDayId: string; notes?: string };
   }>(
     "/arrive",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
       const role = (request.user as { role: string }).role;
-      if (role !== "FRONTDESK") {
-        return reply.code(403).send({ error: "Only front desk can register patient arrivals" });
+      if (role !== "FRONTDESK" && role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only front desk or admin can register patient arrivals" });
       }
 
-      const { name, dob, reason, workingDayId } = request.body;
+      const { name, reason, workingDayId, notes } = request.body;
 
       const arrival = await prisma.patientArrival.create({
         data: {
           workingDayId,
           name,
-          dob: new Date(dob),
           reason,
+          ...(notes ? { notes } : {}),
         },
       });
 
@@ -58,6 +58,8 @@ export async function patientRoutes(app: FastifyInstance) {
         where: { id: request.params.id },
         data: { acknowledged: true },
       });
+
+      broadcast({ type: "PATIENT_ACKNOWLEDGED", payload: arrival });
       return reply.send(arrival);
     }
   );

@@ -20,8 +20,25 @@
 - Admin should be able to edit/add tasks that can be assigned. (Handover after ST)
 - Admin settings panel
 
+# v0.1.4
+- FIX: When coordinator or admin adds all team members working today, a refresh is required to show them in task board. This now happens in real time.
+- Allow admin to add/remove/edit colleague's role from a setting's tab
+- Add another role - senior OC. This allows coordinator and admin to assign dispensing tasks to senior OCs.
+
+# v0.1.5
+- Allow admin and coordinator to assign lunch breaks (12:30PM to 2:30PM)
+- Allow admin to see weekly statistics from the new statistics tab
+
+# v0.1.6
+- Added a new script for building and running the entire program
+- Week runs from Sunday to Monday now for statistics tab
+
+# v0.1.7
+- Add frontdesk's view to admin's dashboard.
+- Give frontdesk real time updates applied by admin or coordinator
+- Remove date-of-birth field from entire codebase, replace it with optional notes.
+
 # v0.2.x
 - Add new entity, optoms and integrate with the coordinator's workflow
 - Allow optoms to call for post checks or dispense
 - Notify coordinator to send correct person to optom's room (simillar to front desk)
-

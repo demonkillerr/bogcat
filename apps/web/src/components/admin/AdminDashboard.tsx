@@ -6,7 +6,9 @@ import DashboardLayout from "@/components/DashboardLayout";
 import DaySetupPanel from "@/components/coordinator/DaySetupPanel";
 import ColleagueRow from "@/components/coordinator/ColleagueRow";
 import ArrivalAlerts from "@/components/coordinator/ArrivalAlerts";
+import WeeklyStats from "@/components/admin/WeeklyStats";
 import { api, getRole } from "@/lib/api";
+import { ARRIVAL_REASON_LABELS } from "@/lib/constants";
 import { connectWs, addWsListener } from "@/lib/ws";
 import type { Colleague, WorkingDay, PatientArrival, ActiveSession } from "@/lib/types";
 
@@ -20,7 +22,24 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"coordinator" | "sessions">("coordinator");
+  const [activeTab, setActiveTab] = useState<"coordinator" | "frontdesk" | "sessions" | "settings" | "statistics">("coordinator");
+
+  // Settings tab state
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<"OC" | "SENIOR_OC" | "MANAGER">("OC");
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+
+  // Front Desk tab state
+  const REASONS = ["SIGHT_TEST", "COLLECTION", "ADJUSTMENT"] as const;
+  const [fdName, setFdName] = useState("");
+  const [fdNotes, setFdNotes] = useState("");
+  const [fdReason, setFdReason] = useState<(typeof REASONS)[number]>("SIGHT_TEST");
+  const [fdSubmitting, setFdSubmitting] = useState(false);
+  const [fdSuccess, setFdSuccess] = useState(false);
+  const [fdError, setFdError] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     const role = getRole();
@@ -51,7 +70,7 @@ export default function AdminDashboard() {
     connectWs();
 
     const remove = addWsListener((msg) => {
-      if (msg.type === "STATUS_CHANGED") {
+      if (msg.type === "STATUS_CHANGED" || msg.type === "DAY_SETUP_CHANGED") {
         fetchData();
       }
       if (msg.type === "PATIENT_ARRIVED") {
@@ -59,6 +78,12 @@ export default function AdminDashboard() {
           const a = msg.payload as PatientArrival;
           return prev.some((x) => x.id === a.id) ? prev : [a, ...prev];
         });
+      }
+      if (msg.type === "PATIENT_ACKNOWLEDGED") {
+        const a = msg.payload as PatientArrival;
+        setArrivals((prev) =>
+          prev.map((x) => (x.id === a.id ? { ...x, acknowledged: true } : x))
+        );
       }
       if (msg.type === "SESSION_CHANGED") {
         api.getActiveSessions().then(setSessions).catch(console.error);
@@ -91,6 +116,12 @@ export default function AdminDashboard() {
   }
 
   const workingColleagues = (workingDay?.colleagues ?? []).map((cod) => cod.colleague);
+  const lunchMap = new Map(
+    (workingDay?.colleagues ?? []).map((cod) => [
+      cod.colleague.id,
+      { onLunch: cod.onLunch, lunchStartedAt: cod.lunchStartedAt },
+    ])
+  );
   const activeTasks = workingDay?.taskAllocations ?? [];
 
   function getActiveTask(colleagueId: string) {
@@ -100,6 +131,13 @@ export default function AdminDashboard() {
       ) ?? null
     );
   }
+
+  const lunchEntries = (workingDay?.colleagues ?? []).map((cod) => ({
+    codId: cod.id,
+    colleague: cod.colleague,
+    onLunch: cod.onLunch,
+    lunchStartedAt: cod.lunchStartedAt,
+  }));
 
   const assignableWorking = workingColleagues.filter((c) => c.isAssignable);
 
@@ -118,6 +156,16 @@ export default function AdminDashboard() {
           Coordinator View
         </button>
         <button
+          onClick={() => setActiveTab("frontdesk")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+            activeTab === "frontdesk"
+              ? "bg-blue-600 text-white"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Front Desk
+        </button>
+        <button
           onClick={() => setActiveTab("sessions")}
           className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
             activeTab === "sessions"
@@ -131,6 +179,26 @@ export default function AdminDashboard() {
               {sessions.length}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setActiveTab("settings")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+            activeTab === "settings"
+              ? "bg-blue-600 text-white"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Settings
+        </button>
+        <button
+          onClick={() => setActiveTab("statistics")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+            activeTab === "statistics"
+              ? "bg-blue-600 text-white"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Statistics
         </button>
       </div>
 
@@ -153,13 +221,9 @@ export default function AdminDashboard() {
               workingDayId={workingDay?.id ?? null}
               currentWorking={workingColleagues}
               locked={false}
-              onSaved={(updated) =>
-                setWorkingDay((prev) =>
-                  prev
-                    ? { ...prev, colleagues: updated.map((c) => ({ id: c.id, colleague: c })) }
-                    : null
-                )
-              }
+              onSaved={() => fetchData()}
+              lunchEntries={lunchEntries}
+              onLunchToggled={fetchData}
             />
           </div>
 
@@ -195,6 +259,8 @@ export default function AdminDashboard() {
                       activeTask={getActiveTask(c.id)}
                       workingDayId={workingDay.id}
                       onUpdated={fetchData}
+                      onLunch={lunchMap.get(c.id)?.onLunch}
+                      lunchStartedAt={lunchMap.get(c.id)?.lunchStartedAt}
                     />
                   ))}
                 </div>
@@ -216,7 +282,136 @@ export default function AdminDashboard() {
           </div>
         </>
       )}
+      {activeTab === "frontdesk" && (
+        <div className="max-w-lg mx-auto space-y-6">
+          {/* Arrival form */}
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-5">Register Patient Arrival</h2>
 
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setFdError(null);
+                if (!workingDay) {
+                  setFdError("No working day has been set up today. Switch to Coordinator View to set one up.");
+                  return;
+                }
+                setFdSubmitting(true);
+                try {
+                  const arrival = await api.notifyArrival({
+                    name: fdName,
+                    reason: fdReason,
+                    workingDayId: workingDay.id,
+                    ...(fdNotes.trim() ? { notes: fdNotes.trim() } : {}),
+                  });
+                  setArrivals((prev) =>
+                    prev.some((x) => x.id === arrival.id) ? prev : [arrival, ...prev]
+                  );
+                  setFdName("");
+                  setFdNotes("");
+                  setFdReason("SIGHT_TEST");
+                  setFdSuccess(true);
+                  setTimeout(() => setFdSuccess(false), 4000);
+                } catch (err: unknown) {
+                  setFdError(err instanceof Error ? err.message : "Failed to notify");
+                } finally {
+                  setFdSubmitting(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Patient Full Name</label>
+                <input
+                  type="text"
+                  value={fdName}
+                  onChange={(e) => setFdName(e.target.value)}
+                  required
+                  placeholder="e.g. Jane Smith"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reason for Visit</label>
+                <select
+                  value={fdReason}
+                  onChange={(e) => setFdReason(e.target.value as typeof fdReason)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {REASONS.map((r) => (
+                    <option key={r} value={r}>
+                      {ARRIVAL_REASON_LABELS[r]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Additional Notes <span className="text-slate-400 font-normal">(optional)</span></label>
+                <textarea
+                  value={fdNotes}
+                  onChange={(e) => setFdNotes(e.target.value)}
+                  placeholder="e.g. Patient is in a hurry, needs quick collection"
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+              {fdError && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                  {fdError}
+                </div>
+              )}
+              {fdSuccess && (
+                <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+                  ✓ Arrival registered and coordinator notified.
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={fdSubmitting}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg text-sm transition"
+              >
+                {fdSubmitting ? "Notifying…" : "🔔 Notify Coordinator"}
+              </button>
+            </form>
+          </div>
+
+          {/* Today's arrivals log */}
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">Today&apos;s Arrivals</h2>
+            {arrivals.length === 0 ? (
+              <p className="text-sm text-slate-400 italic">No arrivals logged yet today.</p>
+            ) : (
+              <div className="space-y-2">
+                {arrivals.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center justify-between text-sm border border-slate-100 rounded-lg px-4 py-2.5 bg-slate-50"
+                  >
+                    <div>
+                      <span className="font-medium text-slate-800">{a.name}</span>
+                      {a.notes && (
+                        <span className="ml-2 text-xs text-slate-400 italic">{a.notes}</span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-slate-500">{ARRIVAL_REASON_LABELS[a.reason]}</span>
+                      <span className="ml-3 text-xs text-slate-400">
+                        {new Date(a.arrivedAt).toLocaleTimeString("en-GB", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      {a.acknowledged && (
+                        <span className="ml-2 text-xs text-green-600 font-semibold">✓</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {activeTab === "sessions" && (
         <div className="bg-white rounded-2xl shadow p-6">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">Active Logins</h2>
@@ -262,6 +457,158 @@ export default function AdminDashboard() {
           )}
         </div>
       )}
+
+      {activeTab === "settings" && (
+        <div className="space-y-6">
+          {/* Add new colleague */}
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">Add Colleague</h2>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setSettingsError(null);
+                setSettingsSuccess(null);
+                if (!newName.trim()) {
+                  setSettingsError("Name is required");
+                  return;
+                }
+                setSavingSettings(true);
+                try {
+                  await api.addColleague({ name: newName.trim(), type: newType });
+                  setAllColleagues(await api.getColleagues());
+                  setNewName("");
+                  setNewType("OC");
+                  setSettingsSuccess(`${newName.trim()} added successfully`);
+                  setTimeout(() => setSettingsSuccess(null), 3000);
+                } catch (err: unknown) {
+                  setSettingsError(err instanceof Error ? err.message : "Failed to add colleague");
+                } finally {
+                  setSavingSettings(false);
+                }
+              }}
+              className="flex flex-wrap items-end gap-3"
+            >
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  placeholder="e.g. John Smith"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Role</label>
+                <select
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value as "OC" | "SENIOR_OC" | "MANAGER")}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="OC">Optical Consultant</option>
+                  <option value="SENIOR_OC">Senior OC</option>
+                  <option value="MANAGER">Manager</option>
+                </select>
+              </div>
+              <button
+                type="submit"
+                disabled={savingSettings}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2 rounded-lg transition"
+              >
+                {savingSettings ? "Adding…" : "Add Colleague"}
+              </button>
+            </form>
+            {settingsError && (
+              <p className="mt-3 text-sm text-red-600">{settingsError}</p>
+            )}
+            {settingsSuccess && (
+              <p className="mt-3 text-sm text-green-600">✓ {settingsSuccess}</p>
+            )}
+          </div>
+
+          {/* Colleague list */}
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">
+              All Colleagues <span className="text-slate-400 text-sm font-normal">({allColleagues.length})</span>
+            </h2>
+
+            {allColleagues.length === 0 ? (
+              <p className="text-sm text-slate-400 italic">No colleagues added yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {allColleagues.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between border border-slate-200 rounded-xl px-5 py-3"
+                  >
+                    <span className="font-medium text-slate-800">{c.name}</span>
+                    <div className="flex items-center gap-3">
+                      <select
+                        value={c.type}
+                        onChange={async (e) => {
+                          const newRole = e.target.value as "OC" | "SENIOR_OC" | "MANAGER";
+                          try {
+                            await api.updateColleague(c.id, { type: newRole });
+                            setAllColleagues((prev) =>
+                              prev.map((col) => col.id === c.id ? { ...col, type: newRole } : col)
+                            );
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className="text-xs border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="OC">OC</option>
+                        <option value="SENIOR_OC">Senior OC</option>
+                        <option value="MANAGER">Manager</option>
+                      </select>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <input
+                          type="checkbox"
+                          checked={c.isAssignable}
+                          onChange={async (e) => {
+                            const isAssignable = e.target.checked;
+                            try {
+                              await api.updateColleague(c.id, { isAssignable });
+                              setAllColleagues((prev) =>
+                                prev.map((col) => col.id === c.id ? { ...col, isAssignable } : col)
+                              );
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        Assignable
+                      </label>
+                      <button
+                      onClick={async () => {
+                        if (!confirm(`Remove ${c.name}? This will also delete their task history.`)) return;
+                        setDeletingId(c.id);
+                        try {
+                          await api.deleteColleague(c.id);
+                          setAllColleagues((prev) => prev.filter((col) => col.id !== c.id));
+                        } catch (err) {
+                          console.error(err);
+                        } finally {
+                          setDeletingId(null);
+                        }
+                      }}
+                      disabled={deletingId === c.id}
+                      className="text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg font-semibold transition disabled:opacity-60"
+                    >
+                      {deletingId === c.id ? "Removing…" : "Remove"}
+                    </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "statistics" && <WeeklyStats />}
     </DashboardLayout>
   );
 }

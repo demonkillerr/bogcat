@@ -54,7 +54,7 @@ export default function CoordinatorDashboard() {
     connectWs();
 
     const remove = addWsListener((msg) => {
-      if (msg.type === "STATUS_CHANGED") {
+      if (msg.type === "STATUS_CHANGED" || msg.type === "DAY_SETUP_CHANGED") {
         fetchData();
       }
       if (msg.type === "PATIENT_ARRIVED") {
@@ -62,6 +62,12 @@ export default function CoordinatorDashboard() {
           const a = msg.payload as PatientArrival;
           return prev.some((x) => x.id === a.id) ? prev : [a, ...prev];
         });
+      }
+      if (msg.type === "PATIENT_ACKNOWLEDGED") {
+        const a = msg.payload as PatientArrival;
+        setArrivals((prev) =>
+          prev.map((x) => (x.id === a.id ? { ...x, acknowledged: true } : x))
+        );
       }
     });
 
@@ -83,6 +89,12 @@ export default function CoordinatorDashboard() {
   }
 
   const workingColleagues = (workingDay?.colleagues ?? []).map((cod) => cod.colleague);
+  const lunchMap = new Map(
+    (workingDay?.colleagues ?? []).map((cod) => [
+      cod.colleague.id,
+      { onLunch: cod.onLunch, lunchStartedAt: cod.lunchStartedAt },
+    ])
+  );
   const activeTasks = workingDay?.taskAllocations ?? [];
 
   function getActiveTask(colleagueId: string) {
@@ -90,6 +102,13 @@ export default function CoordinatorDashboard() {
       (t) => t.colleagueId === colleagueId && t.status !== "COMPLETED"
     ) ?? null;
   }
+
+  const lunchEntries = (workingDay?.colleagues ?? []).map((cod) => ({
+    codId: cod.id,
+    colleague: cod.colleague,
+    onLunch: cod.onLunch,
+    lunchStartedAt: cod.lunchStartedAt,
+  }));
 
   const assignableWorking = workingColleagues.filter((c) => c.isAssignable);
 
@@ -110,13 +129,9 @@ export default function CoordinatorDashboard() {
           workingDayId={workingDay?.id ?? null}
           currentWorking={workingColleagues}
           locked={locked}
-          onSaved={(updated) =>
-            setWorkingDay((prev) =>
-              prev
-                ? { ...prev, colleagues: updated.map((c) => ({ id: c.id, colleague: c })) }
-                : null
-            )
-          }
+          onSaved={() => fetchData()}
+          lunchEntries={lunchEntries}
+          onLunchToggled={fetchData}
         />
       </div>
 
@@ -151,6 +166,8 @@ export default function CoordinatorDashboard() {
                   activeTask={getActiveTask(c.id)}
                   workingDayId={workingDay.id}
                   onUpdated={fetchData}
+                  onLunch={lunchMap.get(c.id)?.onLunch}
+                  lunchStartedAt={lunchMap.get(c.id)?.lunchStartedAt}
                 />
               ))}
             </div>
