@@ -63,6 +63,12 @@ export default function CoordinatorDashboard() {
           return prev.some((x) => x.id === a.id) ? prev : [a, ...prev];
         });
       }
+      if (msg.type === "PATIENT_ACKNOWLEDGED") {
+        const a = msg.payload as PatientArrival;
+        setArrivals((prev) =>
+          prev.map((x) => (x.id === a.id ? { ...x, acknowledged: true } : x))
+        );
+      }
     });
 
     // Re-check lock every minute

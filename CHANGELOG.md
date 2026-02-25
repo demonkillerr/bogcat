@@ -21,3 +21,12 @@
 # v0.1.5
 - Allow admin and coordinator to assign lunch breaks (12:30PM to 2:30PM)
 - Allow admin to see weekly statistics from the new statistics tab
+
+# v0.1.6
+- Added a new script for building and running the entire program
+- Week runs from Sunday to Monday now for statistics tab
+
+# v0.1.7
+- Add frontdesk's view to admin's dashboard.
+- Give frontdesk real time updates applied by admin or coordinator
+- Remove date-of-birth field from entire codebase, replace it with optional notes.

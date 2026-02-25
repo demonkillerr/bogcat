@@ -118,8 +118,8 @@ model PatientArrival {
   id           String        @id @default(cuid())
   workingDayId String
   name         String
-  dob          DateTime
   reason       ArrivalReason
+  notes        String?
   arrivedAt    DateTime      @default(now())
   acknowledged Boolean       @default(false)
 

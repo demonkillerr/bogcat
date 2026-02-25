@@ -8,6 +8,7 @@ import ColleagueRow from "@/components/coordinator/ColleagueRow";
 import ArrivalAlerts from "@/components/coordinator/ArrivalAlerts";
 import WeeklyStats from "@/components/admin/WeeklyStats";
 import { api, getRole } from "@/lib/api";
+import { ARRIVAL_REASON_LABELS } from "@/lib/constants";
 import { connectWs, addWsListener } from "@/lib/ws";
 import type { Colleague, WorkingDay, PatientArrival, ActiveSession } from "@/lib/types";
 
@@ -21,13 +22,22 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"coordinator" | "sessions" | "settings" | "statistics">("coordinator");
+  const [activeTab, setActiveTab] = useState<"coordinator" | "frontdesk" | "sessions" | "settings" | "statistics">("coordinator");
 
   // Settings tab state
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<"OC" | "SENIOR_OC" | "MANAGER">("OC");
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+
+  // Front Desk tab state
+  const REASONS = ["SIGHT_TEST", "COLLECTION", "ADJUSTMENT"] as const;
+  const [fdName, setFdName] = useState("");
+  const [fdNotes, setFdNotes] = useState("");
+  const [fdReason, setFdReason] = useState<(typeof REASONS)[number]>("SIGHT_TEST");
+  const [fdSubmitting, setFdSubmitting] = useState(false);
+  const [fdSuccess, setFdSuccess] = useState(false);
+  const [fdError, setFdError] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -68,6 +78,12 @@ export default function AdminDashboard() {
           const a = msg.payload as PatientArrival;
           return prev.some((x) => x.id === a.id) ? prev : [a, ...prev];
         });
+      }
+      if (msg.type === "PATIENT_ACKNOWLEDGED") {
+        const a = msg.payload as PatientArrival;
+        setArrivals((prev) =>
+          prev.map((x) => (x.id === a.id ? { ...x, acknowledged: true } : x))
+        );
       }
       if (msg.type === "SESSION_CHANGED") {
         api.getActiveSessions().then(setSessions).catch(console.error);
@@ -138,6 +154,16 @@ export default function AdminDashboard() {
           }`}
         >
           Coordinator View
+        </button>
+        <button
+          onClick={() => setActiveTab("frontdesk")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+            activeTab === "frontdesk"
+              ? "bg-blue-600 text-white"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Front Desk
         </button>
         <button
           onClick={() => setActiveTab("sessions")}
@@ -256,7 +282,136 @@ export default function AdminDashboard() {
           </div>
         </>
       )}
+      {activeTab === "frontdesk" && (
+        <div className="max-w-lg mx-auto space-y-6">
+          {/* Arrival form */}
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-5">Register Patient Arrival</h2>
 
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setFdError(null);
+                if (!workingDay) {
+                  setFdError("No working day has been set up today. Switch to Coordinator View to set one up.");
+                  return;
+                }
+                setFdSubmitting(true);
+                try {
+                  const arrival = await api.notifyArrival({
+                    name: fdName,
+                    reason: fdReason,
+                    workingDayId: workingDay.id,
+                    ...(fdNotes.trim() ? { notes: fdNotes.trim() } : {}),
+                  });
+                  setArrivals((prev) =>
+                    prev.some((x) => x.id === arrival.id) ? prev : [arrival, ...prev]
+                  );
+                  setFdName("");
+                  setFdNotes("");
+                  setFdReason("SIGHT_TEST");
+                  setFdSuccess(true);
+                  setTimeout(() => setFdSuccess(false), 4000);
+                } catch (err: unknown) {
+                  setFdError(err instanceof Error ? err.message : "Failed to notify");
+                } finally {
+                  setFdSubmitting(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Patient Full Name</label>
+                <input
+                  type="text"
+                  value={fdName}
+                  onChange={(e) => setFdName(e.target.value)}
+                  required
+                  placeholder="e.g. Jane Smith"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reason for Visit</label>
+                <select
+                  value={fdReason}
+                  onChange={(e) => setFdReason(e.target.value as typeof fdReason)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {REASONS.map((r) => (
+                    <option key={r} value={r}>
+                      {ARRIVAL_REASON_LABELS[r]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Additional Notes <span className="text-slate-400 font-normal">(optional)</span></label>
+                <textarea
+                  value={fdNotes}
+                  onChange={(e) => setFdNotes(e.target.value)}
+                  placeholder="e.g. Patient is in a hurry, needs quick collection"
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+              {fdError && (
+                <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                  {fdError}
+                </div>
+              )}
+              {fdSuccess && (
+                <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+                  ✓ Arrival registered and coordinator notified.
+                </div>
+              )}
+              <button
+                type="submit"
+                disabled={fdSubmitting}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg text-sm transition"
+              >
+                {fdSubmitting ? "Notifying…" : "🔔 Notify Coordinator"}
+              </button>
+            </form>
+          </div>
+
+          {/* Today's arrivals log */}
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">Today&apos;s Arrivals</h2>
+            {arrivals.length === 0 ? (
+              <p className="text-sm text-slate-400 italic">No arrivals logged yet today.</p>
+            ) : (
+              <div className="space-y-2">
+                {arrivals.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center justify-between text-sm border border-slate-100 rounded-lg px-4 py-2.5 bg-slate-50"
+                  >
+                    <div>
+                      <span className="font-medium text-slate-800">{a.name}</span>
+                      {a.notes && (
+                        <span className="ml-2 text-xs text-slate-400 italic">{a.notes}</span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-slate-500">{ARRIVAL_REASON_LABELS[a.reason]}</span>
+                      <span className="ml-3 text-xs text-slate-400">
+                        {new Date(a.arrivedAt).toLocaleTimeString("en-GB", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      {a.acknowledged && (
+                        <span className="ml-2 text-xs text-green-600 font-semibold">✓</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {activeTab === "sessions" && (
         <div className="bg-white rounded-2xl shadow p-6">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">Active Logins</h2>

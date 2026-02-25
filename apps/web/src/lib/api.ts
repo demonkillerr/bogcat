@@ -100,9 +100,9 @@ export const api = {
 
   notifyArrival: (payload: {
     name: string;
-    dob: string;
     reason: string;
     workingDayId: string;
+    notes?: string;
   }) =>
     apiFetch("/patients/arrive", {
       method: "POST",
