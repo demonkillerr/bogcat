@@ -17,8 +17,8 @@ export default function FrontDeskDashboard() {
   const [arrivals, setArrivals] = useState<PatientArrival[]>([]);
 
   const [name, setName] = useState("");
-  const [dob, setDob] = useState("");
   const [reason, setReason] = useState<(typeof REASONS)[number]>("SIGHT_TEST");
+  const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,13 +70,13 @@ export default function FrontDeskDashboard() {
     try {
       const arrival = await api.notifyArrival({
         name,
-        dob,
         reason,
         workingDayId: workingDay.id,
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
       setArrivals((prev) => [arrival, ...prev]);
       setName("");
-      setDob("");
+      setNotes("");
       setReason("SIGHT_TEST");
       setSuccess(true);
       setTimeout(() => setSuccess(false), 4000);
@@ -108,17 +108,6 @@ export default function FrontDeskDashboard() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth</label>
-              <input
-                type="date"
-                value={dob}
-                onChange={(e) => setDob(e.target.value)}
-                required
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Reason for Visit</label>
               <select
                 value={reason}
@@ -131,6 +120,17 @@ export default function FrontDeskDashboard() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Additional Notes <span className="text-slate-400 font-normal">(optional)</span></label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. Patient is in a hurry, needs quick collection"
+                rows={2}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
             </div>
 
             {error && (
@@ -170,9 +170,9 @@ export default function FrontDeskDashboard() {
                 >
                   <div>
                     <span className="font-medium text-slate-800">{a.name}</span>
-                    <span className="ml-2 text-xs text-slate-400">
-                      {new Date(a.dob).toLocaleDateString("en-GB")}
-                    </span>
+                    {a.notes && (
+                      <span className="ml-2 text-xs text-slate-400 italic">{a.notes}</span>
+                    )}
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-slate-500">{ARRIVAL_REASON_LABELS[a.reason]}</span>

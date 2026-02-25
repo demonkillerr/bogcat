@@ -36,8 +36,9 @@ export default function ArrivalAlerts({ arrivals, onAcknowledged }: Props) {
               New patient arrival — {ARRIVAL_REASON_LABELS[a.reason] ?? a.reason}
             </p>
             <p className="text-sm text-yellow-700">
-              <strong>{a.name}</strong> · DOB: {new Date(a.dob).toLocaleDateString("en-GB")} ·{" "}
+              <strong>{a.name}</strong> ·{" "}
               {new Date(a.arrivedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+              {a.notes && <span className="ml-1 italic">— {a.notes}</span>}
             </p>
           </div>
           <button

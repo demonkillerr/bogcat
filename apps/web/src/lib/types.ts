@@ -29,8 +29,8 @@ export interface PatientArrival {
   id: string;
   workingDayId: string;
   name: string;
-  dob: string;
   reason: "SIGHT_TEST" | "COLLECTION" | "ADJUSTMENT";
+  notes: string | null;
   arrivedAt: string;
   acknowledged: boolean;
 }

@@ -33,7 +33,7 @@ export default function AdminDashboard() {
   // Front Desk tab state
   const REASONS = ["SIGHT_TEST", "COLLECTION", "ADJUSTMENT"] as const;
   const [fdName, setFdName] = useState("");
-  const [fdDob, setFdDob] = useState("");
+  const [fdNotes, setFdNotes] = useState("");
   const [fdReason, setFdReason] = useState<(typeof REASONS)[number]>("SIGHT_TEST");
   const [fdSubmitting, setFdSubmitting] = useState(false);
   const [fdSuccess, setFdSuccess] = useState(false);
@@ -294,13 +294,13 @@ export default function AdminDashboard() {
                 try {
                   const arrival = await api.notifyArrival({
                     name: fdName,
-                    dob: fdDob,
                     reason: fdReason,
                     workingDayId: workingDay.id,
+                    ...(fdNotes.trim() ? { notes: fdNotes.trim() } : {}),
                   });
                   setArrivals((prev) => [arrival, ...prev]);
                   setFdName("");
-                  setFdDob("");
+                  setFdNotes("");
                   setFdReason("SIGHT_TEST");
                   setFdSuccess(true);
                   setTimeout(() => setFdSuccess(false), 4000);
@@ -324,16 +324,6 @@ export default function AdminDashboard() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth</label>
-                <input
-                  type="date"
-                  value={fdDob}
-                  onChange={(e) => setFdDob(e.target.value)}
-                  required
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Reason for Visit</label>
                 <select
                   value={fdReason}
@@ -346,6 +336,16 @@ export default function AdminDashboard() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Additional Notes <span className="text-slate-400 font-normal">(optional)</span></label>
+                <textarea
+                  value={fdNotes}
+                  onChange={(e) => setFdNotes(e.target.value)}
+                  placeholder="e.g. Patient is in a hurry, needs quick collection"
+                  rows={2}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
               </div>
               {fdError && (
                 <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -381,9 +381,9 @@ export default function AdminDashboard() {
                   >
                     <div>
                       <span className="font-medium text-slate-800">{a.name}</span>
-                      <span className="ml-2 text-xs text-slate-400">
-                        {new Date(a.dob).toLocaleDateString("en-GB")}
-                      </span>
+                      {a.notes && (
+                        <span className="ml-2 text-xs text-slate-400 italic">{a.notes}</span>
+                      )}
                     </div>
                     <div className="text-right">
                       <span className="text-xs text-slate-500">{ARRIVAL_REASON_LABELS[a.reason]}</span>
