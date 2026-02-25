@@ -5,11 +5,9 @@ import { api } from "@/lib/api";
 import { TASK_LABELS, ARRIVAL_REASON_LABELS, COLLEAGUE_TYPE_LABELS } from "@/lib/constants";
 import type { WeeklyStats as WeeklyStatsType } from "@/lib/types";
 
-function mondayOfWeek(date: Date): string {
+function sundayOfWeek(date: Date): string {
   const d = new Date(date);
-  const day = d.getDay(); // 0=Sun
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
+  d.setDate(d.getDate() - d.getDay()); // roll back to Sunday
   return d.toISOString().slice(0, 10);
 }
 
@@ -26,7 +24,7 @@ function formatTime(iso: string): string {
 }
 
 export default function WeeklyStats() {
-  const [weekOf, setWeekOf] = useState(mondayOfWeek(new Date()));
+  const [weekOf, setWeekOf] = useState(sundayOfWeek(new Date()));
   const [stats, setStats] = useState<WeeklyStatsType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +49,7 @@ export default function WeeklyStats() {
   function shiftWeek(delta: number) {
     const d = new Date(weekOf);
     d.setDate(d.getDate() + delta * 7);
-    setWeekOf(mondayOfWeek(d));
+    setWeekOf(sundayOfWeek(d));
   }
 
   if (loading) {
