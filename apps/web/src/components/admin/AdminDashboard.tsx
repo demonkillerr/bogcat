@@ -304,7 +304,9 @@ export default function AdminDashboard() {
                     workingDayId: workingDay.id,
                     ...(fdNotes.trim() ? { notes: fdNotes.trim() } : {}),
                   });
-                  setArrivals((prev) => [arrival, ...prev]);
+                  setArrivals((prev) =>
+                    prev.some((x) => x.id === arrival.id) ? prev : [arrival, ...prev]
+                  );
                   setFdName("");
                   setFdNotes("");
                   setFdReason("SIGHT_TEST");

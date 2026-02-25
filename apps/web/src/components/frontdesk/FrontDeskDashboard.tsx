@@ -86,7 +86,9 @@ export default function FrontDeskDashboard() {
         workingDayId: workingDay.id,
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
-      setArrivals((prev) => [arrival, ...prev]);
+      setArrivals((prev) =>
+        prev.some((x) => x.id === arrival.id) ? prev : [arrival, ...prev]
+      );
       setName("");
       setNotes("");
       setReason("SIGHT_TEST");
