@@ -7,10 +7,13 @@ async function main() {
 
   // ── Users ────────────────────────────────────────────────────────────────
   const users: { username: string; role: Role }[] = [
-    { username: "coordinator", role: Role.COORDINATOR },
-    { username: "frontdesk",   role: Role.FRONTDESK },
-    { username: "admin",       role: Role.ADMIN },
-    { username: "optometrist", role: Role.OPTOMETRIST },
+    { username: "coordinator",        role: Role.COORDINATOR },
+    { username: "frontdesk",          role: Role.FRONTDESK },
+    { username: "admin",              role: Role.ADMIN },
+    { username: "optometrist_room1",  role: Role.OPTOMETRIST },
+    { username: "optometrist_room2",  role: Role.OPTOMETRIST },
+    { username: "optometrist_room3",  role: Role.OPTOMETRIST },
+    { username: "optometrist_room4",  role: Role.OPTOMETRIST },
   ];
 
   for (const user of users) {

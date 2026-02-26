@@ -14,10 +14,10 @@ datasource db {
 
 model User {
   id       String  @id @default(cuid())
-  username String  @unique // "coordinator" | "frontdesk" | "admin" | "optometrist"
+  username String  @unique // "coordinator" | "frontdesk" | "admin" | "optometrist_room1" .. "optometrist_room4"
   role     Role
 
-  sessions Session[]
+  session Session?
 }
 
 model Session {
@@ -25,7 +25,7 @@ model Session {
   token     String   @unique
   createdAt DateTime @default(now())
 
-  userId    String
+  userId    String   @unique
   user      User     @relation(fields: [userId], references: [id])
 }
 
@@ -152,6 +152,7 @@ model OptometristCall {
   roomNumber      Int
   optometristName String
   taskType        OptCallTaskType
+  notes           String?
   status          OptCallStatus  @default(PENDING)
   createdAt       DateTime       @default(now())
   acknowledgedAt  DateTime?
