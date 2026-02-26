@@ -42,6 +42,7 @@ export default function OptCallAlerts({ calls, onAcknowledged }: Props) {
                 hour: "2-digit",
                 minute: "2-digit",
               })}
+              {c.notes && <span className="ml-1 italic"> — {c.notes}</span>}
             </p>
           </div>
           <button

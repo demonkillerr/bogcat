@@ -12,6 +12,12 @@ import { ARRIVAL_REASON_LABELS, OPT_CALL_LABELS } from "@/lib/constants";
 import { connectWs, addWsListener } from "@/lib/ws";
 import type { Colleague, WorkingDay, PatientArrival, ActiveSession, OptometristCall, OptometristProfile } from "@/lib/types";
 
+/** Map optometrist_roomN to a friendlier display name */
+function displayUsername(username: string): string {
+  const match = username.match(/^optometrist_room(\d)$/);
+  return match ? `Optom — Room ${match[1]}` : username;
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
 
@@ -631,7 +637,7 @@ export default function AdminDashboard() {
                       value={optAdminName}
                       onChange={(e) => setOptAdminName(e.target.value)}
                       required
-                      placeholder="e.g. Dr. Smith"
+                      placeholder="e.g. Craig Donald"
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -692,6 +698,7 @@ export default function AdminDashboard() {
                           hour: "2-digit",
                           minute: "2-digit",
                         })}
+                        {c.notes && <span className="ml-1 italic text-slate-400">— {c.notes}</span>}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -746,7 +753,7 @@ export default function AdminDashboard() {
                   className="flex items-center justify-between border border-slate-200 rounded-xl px-5 py-4"
                 >
                   <div>
-                    <p className="font-semibold text-slate-800 capitalize">{s.username}</p>
+                    <p className="font-semibold text-slate-800 capitalize">{displayUsername(s.username)}</p>
                     <p className="text-xs text-slate-500">
                       Role: <span className="font-medium">{s.role}</span> · Logged in:{" "}
                       {new Date(s.createdAt).toLocaleString("en-GB", {
