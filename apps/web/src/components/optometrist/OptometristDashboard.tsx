@@ -38,13 +38,17 @@ const DISPENSE_TYPES: OptCallTaskType[] = [
 export default function OptometristDashboard() {
   const router = useRouter();
 
-  // Profile state
-  const [profile, setProfile] = useState<OptometristProfile | null>(null);
-  const [profileName, setProfileName] = useState("");
-  const [profileRoom, setProfileRoom] = useState<1 | 2 | 3 | 4>(1);
+  // All profiles for today (multiple optometrists)
+  const [profiles, setProfiles] = useState<OptometristProfile[]>([]);
+
+  // This optometrist's own profile (set after claiming a room)
+  const [myProfile, setMyProfile] = useState<OptometristProfile | null>(null);
+
+  // Room claim form
+  const [claimName, setClaimName] = useState("");
+  const [claimRoom, setClaimRoom] = useState<1 | 2 | 3 | 4 | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [profileSuccess, setProfileSuccess] = useState(false);
 
   // Call state
   const [calls, setCalls] = useState<OptometristCall[]>([]);
@@ -55,28 +59,29 @@ export default function OptometristDashboard() {
   const [callSuccess, setCallSuccess] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
 
-  // 10AM lock
-  const isAfter10AM = () => new Date().getHours() >= 10;
-  const profileLocked = (profile?.locked ?? false) || (profile !== null && isAfter10AM());
-
   // Guard
   useEffect(() => {
     const role = getRole();
     if (role !== "OPTOMETRIST") router.replace("/");
   }, [router]);
 
+  const fetchProfiles = useCallback(async () => {
+    try {
+      const profs: OptometristProfile[] = await api.getOptometristProfiles();
+      setProfiles(profs);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
-      const [prof, callsData, day] = await Promise.all([
-        api.getOptometristProfile(),
+      const [profs, callsData, day] = await Promise.all([
+        api.getOptometristProfiles(),
         api.getTodayOptometristCalls(),
         api.getTodayWorkingDay(),
       ]);
-      if (prof) {
-        setProfile(prof);
-        setProfileName(prof.name);
-        setProfileRoom(prof.roomNumber as 1 | 2 | 3 | 4);
-      }
+      setProfiles(profs as OptometristProfile[]);
       setCalls(callsData);
       setWorkingDay(day);
     } catch (e) {
@@ -93,22 +98,35 @@ export default function OptometristDashboard() {
         const call = msg.payload as OptometristCall;
         setCalls((prev) => prev.map((c) => (c.id === call.id ? call : c)));
       }
+      if (msg.type === "OPT_PROFILES_UPDATED") {
+        fetchProfiles();
+      }
     });
 
     return () => { remove(); };
-  }, [fetchData]);
+  }, [fetchData, fetchProfiles]);
 
-  async function handleSaveProfile(e: React.FormEvent) {
+  const takenRooms = new Set(profiles.map((p) => p.roomNumber));
+  const availableRooms = ([1, 2, 3, 4] as const).filter((r) => !takenRooms.has(r));
+
+  async function handleClaimRoom(e: React.FormEvent) {
     e.preventDefault();
     setProfileError(null);
+    if (!claimRoom) {
+      setProfileError("Please select a room.");
+      return;
+    }
+    if (!claimName.trim()) {
+      setProfileError("Please enter your name.");
+      return;
+    }
     setSavingProfile(true);
     try {
-      const saved = await api.saveOptometristProfile({ name: profileName, roomNumber: profileRoom });
-      setProfile(saved);
-      setProfileSuccess(true);
-      setTimeout(() => setProfileSuccess(false), 3000);
+      const saved = await api.saveOptometristProfile({ name: claimName.trim(), roomNumber: claimRoom });
+      setMyProfile(saved);
+      setProfiles((prev) => [...prev.filter((p) => p.id !== saved.id), saved]);
     } catch (err: unknown) {
-      setProfileError(err instanceof Error ? err.message : "Failed to save profile");
+      setProfileError(err instanceof Error ? err.message : "Failed to claim room");
     } finally {
       setSavingProfile(false);
     }
@@ -116,8 +134,8 @@ export default function OptometristDashboard() {
 
   async function handleCall() {
     setCallError(null);
-    if (!profile) {
-      setCallError("Please save your name and room number first.");
+    if (!myProfile) {
+      setCallError("Please claim a room first.");
       return;
     }
     if (!workingDay) {
@@ -128,8 +146,8 @@ export default function OptometristDashboard() {
     try {
       const call = await api.submitOptometristCall({
         workingDayId: workingDay.id,
-        roomNumber: profile.roomNumber,
-        optometristName: profile.name,
+        roomNumber: myProfile.roomNumber,
+        optometristName: myProfile.name,
         taskType: selectedTask,
       });
       setCalls((prev) => [call, ...prev]);
@@ -146,83 +164,129 @@ export default function OptometristDashboard() {
     <DashboardLayout title="Optometrist">
       <div className="max-w-lg mx-auto space-y-6">
 
-        {/* ── Profile card ── */}
+        {/* ── Room allocation overview ── */}
         <div className="bg-white rounded-2xl shadow p-6">
-          <h2 className="text-lg font-semibold text-slate-800 mb-5">My Profile</h2>
-          <form onSubmit={handleSaveProfile} className="space-y-4">
-
-            {/* Name */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Your Name</label>
-              <input
-                type="text"
-                value={profileName}
-                onChange={(e) => setProfileName(e.target.value)}
-                required
-                disabled={profileLocked}
-                placeholder="e.g. Dr. Smith"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
-              />
-            </div>
-
-            {/* Room selector */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Room Number</label>
-              <div className="grid grid-cols-4 gap-2">
-                {([1, 2, 3, 4] as const).map((room) => (
-                  <button
-                    key={room}
-                    type="button"
-                    disabled={profileLocked}
-                    onClick={() => setProfileRoom(room)}
-                    className={`py-2.5 rounded-lg text-sm font-semibold border transition ${
-                      profileRoom === room
-                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                        : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    }`}
-                  >
-                    Room {room}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Lock notice */}
-            {profileLocked && (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                🔒 Profile is locked for today (after 10:00 AM). Contact admin if changes are needed.
-              </p>
-            )}
-
-            {profileError && (
-              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-                {profileError}
-              </div>
-            )}
-            {profileSuccess && (
-              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
-                ✓ Profile saved.
-              </div>
-            )}
-
-            {!profileLocked && (
-              <button
-                type="submit"
-                disabled={savingProfile}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg text-sm transition"
-              >
-                {savingProfile ? "Saving…" : "Save Profile"}
-              </button>
-            )}
-          </form>
+          <h2 className="text-lg font-semibold text-slate-800 mb-4">Today&apos;s Room Allocations</h2>
+          <div className="grid grid-cols-4 gap-2">
+            {([1, 2, 3, 4] as const).map((room) => {
+              const owner = profiles.find((p) => p.roomNumber === room);
+              const isMine = myProfile?.roomNumber === room;
+              return (
+                <div
+                  key={room}
+                  className={`rounded-lg border p-3 text-center text-sm ${
+                    isMine
+                      ? "bg-blue-50 border-blue-400"
+                      : owner
+                        ? "bg-slate-50 border-slate-200"
+                        : "bg-green-50 border-green-200"
+                  }`}
+                >
+                  <p className="font-semibold text-slate-700">Room {room}</p>
+                  {owner ? (
+                    <p className={`text-xs mt-1 ${isMine ? "text-blue-600 font-semibold" : "text-slate-500"}`}>
+                      {isMine ? `${owner.name} (You)` : owner.name}
+                    </p>
+                  ) : (
+                    <p className="text-xs mt-1 text-green-600">Available</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
+
+        {/* ── Room claim form (shown only if this optometrist hasn't claimed a room yet) ── */}
+        {!myProfile && (
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-2">Claim Your Room</h2>
+            <p className="text-sm text-slate-500 mb-4">Enter your name and select an available room. Once saved, your room is locked for the day.</p>
+
+            {availableRooms.length === 0 ? (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                All 4 rooms are taken for today. Contact admin if you need to make changes.
+              </p>
+            ) : (
+              <form onSubmit={handleClaimRoom} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Your Name</label>
+                  <input
+                    type="text"
+                    value={claimName}
+                    onChange={(e) => setClaimName(e.target.value)}
+                    required
+                    placeholder="e.g. Craig Donald"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Select Room</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {([1, 2, 3, 4] as const).map((room) => {
+                      const taken = takenRooms.has(room);
+                      return (
+                        <button
+                          key={room}
+                          type="button"
+                          disabled={taken}
+                          onClick={() => setClaimRoom(room)}
+                          className={`py-2.5 rounded-lg text-sm font-semibold border transition ${
+                            claimRoom === room
+                              ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                              : taken
+                                ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
+                                : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                          }`}
+                        >
+                          Room {room}
+                          {taken && <span className="block text-xs font-normal mt-0.5">Taken</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {profileError && (
+                  <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                    {profileError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={savingProfile || !claimRoom}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-lg text-sm transition"
+                >
+                  {savingProfile ? "Claiming…" : "🔒 Claim Room & Lock"}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* ── Your profile card (shown after claiming) ── */}
+        {myProfile && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-blue-600 font-semibold">Your Assignment</p>
+                <p className="text-lg font-bold text-slate-800">{myProfile.name}</p>
+                <p className="text-sm text-slate-600">Room {myProfile.roomNumber}</p>
+              </div>
+              <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">
+                🔒 Locked
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* ── Call for assistance ── */}
         <div className="bg-white rounded-2xl shadow p-6">
           <h2 className="text-lg font-semibold text-slate-800 mb-5">Call for Assistance</h2>
 
-          {!profile ? (
-            <p className="text-sm text-slate-400 italic">Save your profile above before calling for assistance.</p>
+          {!myProfile ? (
+            <p className="text-sm text-slate-400 italic">Claim a room above before calling for assistance.</p>
           ) : (
             <div className="space-y-4">
 
@@ -280,7 +344,7 @@ export default function OptometristDashboard() {
 
               {/* Current selection summary */}
               <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600 border border-slate-200">
-                <span className="font-medium">Room {profile.roomNumber}</span>
+                <span className="font-medium">Room {myProfile.roomNumber}</span>
                 {" · "}
                 <span>{mainTab === "POST_CHECKS" ? "Post Check" : "Dispense"}</span>
                 {" · "}
