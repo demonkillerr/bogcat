@@ -8,9 +8,9 @@ import ColleagueRow from "@/components/coordinator/ColleagueRow";
 import ArrivalAlerts from "@/components/coordinator/ArrivalAlerts";
 import WeeklyStats from "@/components/admin/WeeklyStats";
 import { api, getRole } from "@/lib/api";
-import { ARRIVAL_REASON_LABELS } from "@/lib/constants";
+import { ARRIVAL_REASON_LABELS, OPT_CALL_LABELS } from "@/lib/constants";
 import { connectWs, addWsListener } from "@/lib/ws";
-import type { Colleague, WorkingDay, PatientArrival, ActiveSession } from "@/lib/types";
+import type { Colleague, WorkingDay, PatientArrival, ActiveSession, OptometristCall, OptometristProfile } from "@/lib/types";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [loggingOut, setLoggingOut] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"coordinator" | "frontdesk" | "sessions" | "settings" | "statistics">("coordinator");
+  const [activeTab, setActiveTab] = useState<"coordinator" | "frontdesk" | "optometrist" | "sessions" | "settings" | "statistics">("coordinator");
 
   // Settings tab state
   const [newName, setNewName] = useState("");
@@ -41,6 +41,16 @@ export default function AdminDashboard() {
   const [savingSettings, setSavingSettings] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Optometrist tab state
+  const [optCalls, setOptCalls] = useState<OptometristCall[]>([]);
+  const [optProfile, setOptProfile] = useState<OptometristProfile | null>(null);
+  const [optAdminName, setOptAdminName] = useState("");
+  const [optAdminRoom, setOptAdminRoom] = useState<1 | 2 | 3 | 4>(1);
+  const [savingOptProfile, setSavingOptProfile] = useState(false);
+  const [optProfileError, setOptProfileError] = useState<string | null>(null);
+  const [optProfileSuccess, setOptProfileSuccess] = useState<string | null>(null);
+  const [ackingId, setAckingId] = useState<string | null>(null);
+
   useEffect(() => {
     const role = getRole();
     if (role !== "ADMIN") router.replace("/");
@@ -48,16 +58,24 @@ export default function AdminDashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [cols, day, arriv, sess] = await Promise.all([
+      const [cols, day, arriv, sess, optCallsData, optProf] = await Promise.all([
         api.getColleagues(),
         api.getTodayWorkingDay(),
         api.getTodayArrivals(),
         api.getActiveSessions(),
+        api.getTodayOptometristCalls(),
+        api.getOptometristProfile(),
       ]);
       setAllColleagues(cols);
       setWorkingDay(day);
       setArrivals(arriv);
       setSessions(sess);
+      setOptCalls(optCallsData);
+      if (optProf) {
+        setOptProfile(optProf);
+        setOptAdminName(optProf.name);
+        setOptAdminRoom(optProf.roomNumber as 1 | 2 | 3 | 4);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -87,6 +105,22 @@ export default function AdminDashboard() {
       }
       if (msg.type === "SESSION_CHANGED") {
         api.getActiveSessions().then(setSessions).catch(console.error);
+      }
+      if (msg.type === "OPT_CALL") {
+        const c = msg.payload as OptometristCall;
+        setOptCalls((prev) =>
+          prev.some((x) => x.id === c.id) ? prev : [c, ...prev]
+        );
+      }
+      if (msg.type === "OPT_CALL_ACKNOWLEDGED") {
+        const c = msg.payload as OptometristCall;
+        setOptCalls((prev) => prev.map((x) => (x.id === c.id ? c : x)));
+      }
+      if (msg.type === "OPT_PROFILE_UPDATED") {
+        const p = msg.payload as OptometristProfile;
+        setOptProfile(p);
+        setOptAdminName(p.name);
+        setOptAdminRoom(p.roomNumber as 1 | 2 | 3 | 4);
       }
     });
 
@@ -164,6 +198,21 @@ export default function AdminDashboard() {
           }`}
         >
           Front Desk
+        </button>
+        <button
+          onClick={() => setActiveTab("optometrist")}
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+            activeTab === "optometrist"
+              ? "bg-blue-600 text-white"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          Optometrist
+          {optCalls.filter((c) => c.status === "PENDING").length > 0 && (
+            <span className="ml-2 bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full">
+              {optCalls.filter((c) => c.status === "PENDING").length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab("sessions")}
@@ -412,6 +461,145 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+      {activeTab === "optometrist" && (
+        <div className="space-y-6">
+          {/* Profile editor — admin can bypass 10AM lock */}
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-2">Optometrist Profile</h2>
+            <p className="text-sm text-slate-500 mb-4">
+              Set or override the optometrist&apos;s name and room for today. Admin changes bypass the 10 AM lock.
+            </p>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setOptProfileError(null);
+                setOptProfileSuccess(null);
+                setSavingOptProfile(true);
+                try {
+                  const saved = await api.saveOptometristProfile({
+                    name: optAdminName,
+                    roomNumber: optAdminRoom,
+                  });
+                  setOptProfile(saved);
+                  setOptProfileSuccess("Profile updated successfully.");
+                  setTimeout(() => setOptProfileSuccess(null), 3000);
+                } catch (err: unknown) {
+                  setOptProfileError(err instanceof Error ? err.message : "Failed to update profile");
+                } finally {
+                  setSavingOptProfile(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Optometrist Name</label>
+                <input
+                  type="text"
+                  value={optAdminName}
+                  onChange={(e) => setOptAdminName(e.target.value)}
+                  required
+                  placeholder="e.g. Dr. Smith"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Room Number</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {([1, 2, 3, 4] as const).map((room) => (
+                    <button
+                      key={room}
+                      type="button"
+                      onClick={() => setOptAdminRoom(room)}
+                      className={`py-2.5 rounded-lg text-sm font-semibold border transition ${
+                        optAdminRoom === room
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      Room {room}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {optProfile?.locked && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  ⚠️ Optometrist&apos;s profile is currently locked (after 10 AM). Your admin override will update it regardless.
+                </p>
+              )}
+              {optProfileError && <p className="text-sm text-red-600">{optProfileError}</p>}
+              {optProfileSuccess && <p className="text-sm text-green-600">✓ {optProfileSuccess}</p>}
+              <button
+                type="submit"
+                disabled={savingOptProfile}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2 rounded-lg transition"
+              >
+                {savingOptProfile ? "Saving…" : "Update Profile"}
+              </button>
+            </form>
+          </div>
+
+          {/* Today's optometrist calls */}
+          <div className="bg-white rounded-2xl shadow p-6">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">
+              Today&apos;s Calls
+              <span className="ml-2 text-slate-400 text-sm font-normal">({optCalls.length})</span>
+            </h2>
+            {optCalls.length === 0 ? (
+              <p className="text-sm text-slate-400 italic">No calls logged yet today.</p>
+            ) : (
+              <div className="space-y-2">
+                {optCalls.map((c) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between border border-slate-200 rounded-xl px-5 py-3"
+                  >
+                    <div>
+                      <p className="font-semibold text-slate-800">
+                        Room {c.roomNumber} — {OPT_CALL_LABELS[c.taskType] ?? c.taskType}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {c.optometristName} ·{" "}
+                        {new Date(c.createdAt).toLocaleTimeString("en-GB", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {c.status === "ACKNOWLEDGED" ? (
+                        <span className="text-xs text-green-600 font-semibold">✓ Acknowledged</span>
+                      ) : (
+                        <button
+                          onClick={async () => {
+                            setAckingId(c.id);
+                            try {
+                              await api.acknowledgeOptCall(c.id);
+                              setOptCalls((prev) =>
+                                prev.map((x) =>
+                                  x.id === c.id ? { ...x, status: "ACKNOWLEDGED" as const } : x
+                                )
+                              );
+                            } catch (err) {
+                              console.error(err);
+                            } finally {
+                              setAckingId(null);
+                            }
+                          }}
+                          disabled={ackingId === c.id}
+                          className="text-xs bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-lg font-semibold transition"
+                        >
+                          {ackingId === c.id ? "Acking…" : "Acknowledge"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeTab === "sessions" && (
         <div className="bg-white rounded-2xl shadow p-6">
           <h2 className="text-lg font-semibold text-slate-800 mb-4">Active Logins</h2>
