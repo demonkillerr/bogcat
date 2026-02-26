@@ -17,6 +17,7 @@ import { colleagueRoutes } from "./routes/colleagues.js";
 import { workingDayRoutes } from "./routes/workingDay.js";
 import { taskRoutes } from "./routes/tasks.js";
 import { patientRoutes } from "./routes/patients.js";
+import { optometristRoutes } from "./routes/optometrist.js";
 import { wsHandler } from "./ws/handler.js";
 import { startTimerLoop } from "./ws/timerLoop.js";
 
@@ -65,6 +66,7 @@ await app.register(colleagueRoutes, { prefix: "/colleagues" });
 await app.register(workingDayRoutes, { prefix: "/working-days" });
 await app.register(taskRoutes, { prefix: "/tasks" });
 await app.register(patientRoutes, { prefix: "/patients" });
+await app.register(optometristRoutes, { prefix: "/optometrist" });
 
 // WebSocket endpoint
 app.get("/ws", { websocket: true }, wsHandler);
