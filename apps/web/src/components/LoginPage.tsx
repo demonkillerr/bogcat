@@ -8,11 +8,12 @@ const ROLE_ROUTES: Record<string, string> = {
   COORDINATOR: "/coordinator",
   FRONTDESK: "/frontdesk",
   ADMIN: "/admin",
+  OPTOMETRIST: "/optometrist",
 };
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState<"coordinator" | "frontdesk" | "admin">("coordinator");
+  const [username, setUsername] = useState<"coordinator" | "frontdesk" | "admin" | "optometrist">("coordinator");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,6 +55,7 @@ export default function LoginPage() {
               <option value="coordinator">Coordinator</option>
               <option value="frontdesk">Front Desk</option>
               <option value="admin">Admin</option>
+              <option value="optometrist">Optometrist</option>
             </select>
           </div>
 
