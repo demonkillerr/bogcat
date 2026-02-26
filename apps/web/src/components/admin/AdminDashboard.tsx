@@ -43,13 +43,18 @@ export default function AdminDashboard() {
 
   // Optometrist tab state
   const [optCalls, setOptCalls] = useState<OptometristCall[]>([]);
-  const [optProfile, setOptProfile] = useState<OptometristProfile | null>(null);
+  const [optProfiles, setOptProfiles] = useState<OptometristProfile[]>([]);
   const [optAdminName, setOptAdminName] = useState("");
-  const [optAdminRoom, setOptAdminRoom] = useState<1 | 2 | 3 | 4>(1);
+  const [optAdminRoom, setOptAdminRoom] = useState<1 | 2 | 3 | 4 | null>(null);
   const [savingOptProfile, setSavingOptProfile] = useState(false);
   const [optProfileError, setOptProfileError] = useState<string | null>(null);
   const [optProfileSuccess, setOptProfileSuccess] = useState<string | null>(null);
   const [ackingId, setAckingId] = useState<string | null>(null);
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRoom, setEditRoom] = useState<1 | 2 | 3 | 4>(1);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     const role = getRole();
@@ -58,24 +63,20 @@ export default function AdminDashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [cols, day, arriv, sess, optCallsData, optProf] = await Promise.all([
+      const [cols, day, arriv, sess, optCallsData, optProfs] = await Promise.all([
         api.getColleagues(),
         api.getTodayWorkingDay(),
         api.getTodayArrivals(),
         api.getActiveSessions(),
         api.getTodayOptometristCalls(),
-        api.getOptometristProfile(),
+        api.getOptometristProfiles(),
       ]);
       setAllColleagues(cols);
       setWorkingDay(day);
       setArrivals(arriv);
       setSessions(sess);
       setOptCalls(optCallsData);
-      if (optProf) {
-        setOptProfile(optProf);
-        setOptAdminName(optProf.name);
-        setOptAdminRoom(optProf.roomNumber as 1 | 2 | 3 | 4);
-      }
+      setOptProfiles(optProfs);
     } catch (e) {
       console.error(e);
     } finally {
@@ -116,11 +117,8 @@ export default function AdminDashboard() {
         const c = msg.payload as OptometristCall;
         setOptCalls((prev) => prev.map((x) => (x.id === c.id ? c : x)));
       }
-      if (msg.type === "OPT_PROFILE_UPDATED") {
-        const p = msg.payload as OptometristProfile;
-        setOptProfile(p);
-        setOptAdminName(p.name);
-        setOptAdminRoom(p.roomNumber as 1 | 2 | 3 | 4);
+      if (msg.type === "OPT_PROFILES_UPDATED") {
+        api.getOptometristProfiles().then(setOptProfiles).catch(console.error);
       }
     });
 
@@ -129,11 +127,11 @@ export default function AdminDashboard() {
     };
   }, [fetchData]);
 
-  async function handleForceLogout(userId: string) {
-    setLoggingOut(userId);
+  async function handleForceLogout(sessionId: string) {
+    setLoggingOut(sessionId);
     try {
-      await api.adminLogoutUser(userId);
-      setSessions((prev) => prev.filter((s) => s.userId !== userId));
+      await api.adminLogoutSession(sessionId);
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
     } catch (e) {
       console.error(e);
     } finally {
@@ -463,79 +461,210 @@ export default function AdminDashboard() {
       )}
       {activeTab === "optometrist" && (
         <div className="space-y-6">
-          {/* Profile editor — admin can bypass 10AM lock */}
+          {/* Room allocations overview */}
           <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="text-lg font-semibold text-slate-800 mb-2">Optometrist Profile</h2>
+            <h2 className="text-lg font-semibold text-slate-800 mb-2">Room Allocations</h2>
             <p className="text-sm text-slate-500 mb-4">
-              Set or override the optometrist&apos;s name and room for today. Admin changes bypass the 10 AM lock.
+              Today&apos;s optometrist room assignments. You can edit or remove any allocation.
             </p>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setOptProfileError(null);
-                setOptProfileSuccess(null);
-                setSavingOptProfile(true);
-                try {
-                  const saved = await api.saveOptometristProfile({
-                    name: optAdminName,
-                    roomNumber: optAdminRoom,
-                  });
-                  setOptProfile(saved);
-                  setOptProfileSuccess("Profile updated successfully.");
-                  setTimeout(() => setOptProfileSuccess(null), 3000);
-                } catch (err: unknown) {
-                  setOptProfileError(err instanceof Error ? err.message : "Failed to update profile");
-                } finally {
-                  setSavingOptProfile(false);
-                }
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Optometrist Name</label>
-                <input
-                  type="text"
-                  value={optAdminName}
-                  onChange={(e) => setOptAdminName(e.target.value)}
-                  required
-                  placeholder="e.g. Dr. Smith"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+
+            {/* Room grid overview */}
+            <div className="grid grid-cols-4 gap-3 mb-6">
+              {([1, 2, 3, 4] as const).map((room) => {
+                const owner = optProfiles.find((p) => p.roomNumber === room);
+                return (
+                  <div
+                    key={room}
+                    className={`rounded-xl border p-4 text-center ${
+                      owner ? "bg-blue-50 border-blue-200" : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <p className="font-semibold text-slate-700 text-sm">Room {room}</p>
+                    {owner ? (
+                      <p className="text-sm mt-1 text-blue-700 font-medium">{owner.name}</p>
+                    ) : (
+                      <p className="text-xs mt-1 text-slate-400">Empty</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Existing profiles — editable list */}
+            {optProfiles.length > 0 && (
+              <div className="space-y-2 mb-6">
+                <h3 className="text-sm font-semibold text-slate-600 mb-2">Assigned Optometrists</h3>
+                {optProfiles.map((p) => (
+                  <div key={p.id} className="border border-slate-200 rounded-xl px-5 py-3">
+                    {editingProfileId === p.id ? (
+                      <div className="flex flex-wrap items-end gap-3">
+                        <div className="flex-1 min-w-[150px]">
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Name</label>
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-500 mb-1">Room</label>
+                          <select
+                            value={editRoom}
+                            onChange={(e) => setEditRoom(Number(e.target.value) as 1 | 2 | 3 | 4)}
+                            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            {([1, 2, 3, 4] as const).map((r) => {
+                              const taken = optProfiles.some((op) => op.roomNumber === r && op.id !== p.id);
+                              return (
+                                <option key={r} value={r} disabled={taken}>
+                                  Room {r}{taken ? " (taken)" : ""}
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            setSavingEdit(true);
+                            try {
+                              await api.updateOptometristProfile(p.id, { name: editName.trim() || undefined, roomNumber: editRoom });
+                              setEditingProfileId(null);
+                              const profs = await api.getOptometristProfiles();
+                              setOptProfiles(profs);
+                            } catch (err) {
+                              console.error(err);
+                            } finally {
+                              setSavingEdit(false);
+                            }
+                          }}
+                          disabled={savingEdit}
+                          className="text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white px-3 py-1.5 rounded-lg font-semibold transition"
+                        >
+                          {savingEdit ? "Saving…" : "Save"}
+                        </button>
+                        <button
+                          onClick={() => setEditingProfileId(null)}
+                          className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg font-semibold transition"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-medium text-slate-800">{p.name}</span>
+                          <span className="ml-3 text-sm text-slate-500">Room {p.roomNumber}</span>
+                          {p.locked && <span className="ml-2 text-xs text-amber-600">🔒</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingProfileId(p.id);
+                              setEditName(p.name);
+                              setEditRoom(p.roomNumber as 1 | 2 | 3 | 4);
+                            }}
+                            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg font-semibold transition"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!confirm(`Remove ${p.name} from Room ${p.roomNumber}?`)) return;
+                              setDeletingProfileId(p.id);
+                              try {
+                                await api.deleteOptometristProfile(p.id);
+                                setOptProfiles((prev) => prev.filter((x) => x.id !== p.id));
+                              } catch (err) {
+                                console.error(err);
+                              } finally {
+                                setDeletingProfileId(null);
+                              }
+                            }}
+                            disabled={deletingProfileId === p.id}
+                            className="text-xs bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg font-semibold transition disabled:opacity-60"
+                          >
+                            {deletingProfileId === p.id ? "Removing…" : "Remove"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Room Number</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {([1, 2, 3, 4] as const).map((room) => (
-                    <button
-                      key={room}
-                      type="button"
-                      onClick={() => setOptAdminRoom(room)}
-                      className={`py-2.5 rounded-lg text-sm font-semibold border transition ${
-                        optAdminRoom === room
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                      }`}
+            )}
+
+            {/* Add new profile form */}
+            {optProfiles.length < 4 && (
+              <div className="border-t border-slate-100 pt-4">
+                <h3 className="text-sm font-semibold text-slate-600 mb-3">Add Optometrist</h3>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setOptProfileError(null);
+                    setOptProfileSuccess(null);
+                    if (!optAdminRoom) {
+                      setOptProfileError("Please select a room.");
+                      return;
+                    }
+                    setSavingOptProfile(true);
+                    try {
+                      await api.saveOptometristProfile({ name: optAdminName, roomNumber: optAdminRoom });
+                      const profs = await api.getOptometristProfiles();
+                      setOptProfiles(profs);
+                      setOptAdminName("");
+                      setOptAdminRoom(null);
+                      setOptProfileSuccess("Profile added.");
+                      setTimeout(() => setOptProfileSuccess(null), 3000);
+                    } catch (err: unknown) {
+                      setOptProfileError(err instanceof Error ? err.message : "Failed to add profile");
+                    } finally {
+                      setSavingOptProfile(false);
+                    }
+                  }}
+                  className="flex flex-wrap items-end gap-3"
+                >
+                  <div className="flex-1 min-w-[150px]">
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={optAdminName}
+                      onChange={(e) => setOptAdminName(e.target.value)}
+                      required
+                      placeholder="e.g. Dr. Smith"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Room</label>
+                    <select
+                      value={optAdminRoom ?? ""}
+                      onChange={(e) => setOptAdminRoom(e.target.value ? Number(e.target.value) as 1 | 2 | 3 | 4 : null)}
+                      className="rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      Room {room}
-                    </button>
-                  ))}
-                </div>
+                      <option value="">Select…</option>
+                      {([1, 2, 3, 4] as const).map((r) => {
+                        const taken = optProfiles.some((p) => p.roomNumber === r);
+                        return (
+                          <option key={r} value={r} disabled={taken}>
+                            Room {r}{taken ? " (taken)" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={savingOptProfile}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2 rounded-lg transition"
+                  >
+                    {savingOptProfile ? "Adding…" : "Add"}
+                  </button>
+                </form>
+                {optProfileError && <p className="mt-2 text-sm text-red-600">{optProfileError}</p>}
+                {optProfileSuccess && <p className="mt-2 text-sm text-green-600">✓ {optProfileSuccess}</p>}
               </div>
-              {optProfile?.locked && (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                  ⚠️ Optometrist&apos;s profile is currently locked (after 10 AM). Your admin override will update it regardless.
-                </p>
-              )}
-              {optProfileError && <p className="text-sm text-red-600">{optProfileError}</p>}
-              {optProfileSuccess && <p className="text-sm text-green-600">✓ {optProfileSuccess}</p>}
-              <button
-                type="submit"
-                disabled={savingOptProfile}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold px-5 py-2 rounded-lg transition"
-              >
-                {savingOptProfile ? "Saving…" : "Update Profile"}
-              </button>
-            </form>
+            )}
           </div>
 
           {/* Today's optometrist calls */}
@@ -630,11 +759,11 @@ export default function AdminDashboard() {
                   </div>
                   {s.role !== "ADMIN" ? (
                     <button
-                      onClick={() => handleForceLogout(s.userId)}
-                      disabled={loggingOut === s.userId}
+                      onClick={() => handleForceLogout(s.id)}
+                      disabled={loggingOut === s.id}
                       className="text-xs bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg font-semibold transition"
                     >
-                      {loggingOut === s.userId ? "Logging out…" : "Force Logout"}
+                      {loggingOut === s.id ? "Logging out…" : "Force Logout"}
                     </button>
                   ) : (
                     <span className="text-xs text-slate-400 italic">Current session</span>
