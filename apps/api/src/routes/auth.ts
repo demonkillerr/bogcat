@@ -39,14 +39,25 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(401).send({ error: "Invalid credentials" });
       }
 
-      // 3. Enforce single-session: reject if session already exists
-      const existingSession = await prisma.session.findUnique({
+      // 3. Enforce session limits
+      const existingSessions = await prisma.session.findMany({
         where: { userId: user.id },
       });
-      if (existingSession) {
-        return reply.code(409).send({
-          error: `Account "${username}" is already logged in. Only one login is allowed at a time.`,
-        });
+
+      if (user.role === "OPTOMETRIST") {
+        // Allow up to 4 concurrent sessions for optometrist
+        if (existingSessions.length >= 4) {
+          return reply.code(409).send({
+            error: `All 4 optometrist sessions are in use. An admin can force-logout a session to free one up.`,
+          });
+        }
+      } else {
+        // Single-session for all other roles
+        if (existingSessions.length > 0) {
+          return reply.code(409).send({
+            error: `Account "${username}" is already logged in. Only one login is allowed at a time.`,
+          });
+        }
       }
 
       // 4. Sign JWT
@@ -56,12 +67,12 @@ export async function authRoutes(app: FastifyInstance) {
       );
 
       // 5. Persist session
-      await prisma.session.create({
+      const session = await prisma.session.create({
         data: { userId: user.id, token },
       });
 
       broadcast({ type: "SESSION_CHANGED", payload: { event: "login", username: user.username } });
-      return reply.send({ token, role: user.role, userId: user.id });
+      return reply.send({ token, role: user.role, userId: user.id, sessionId: session.id });
     }
   );
 
@@ -71,7 +82,10 @@ export async function authRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate] },
     async (request, reply) => {
       const payload = request.user as { userId: string; username: string };
-      await prisma.session.deleteMany({ where: { userId: payload.userId } });
+      const token = request.headers.authorization?.replace("Bearer ", "");
+      if (token) {
+        await prisma.session.deleteMany({ where: { userId: payload.userId, token } });
+      }
       broadcast({ type: "SESSION_CHANGED", payload: { event: "logout", username: payload.username } });
       return reply.send({ message: "Logged out successfully" });
     }
@@ -104,9 +118,9 @@ export async function authRoutes(app: FastifyInstance) {
     }
   );
 
-  // DELETE /auth/sessions/:userId — admin only: force logout a user
-  app.delete<{ Params: { userId: string } }>(
-    "/sessions/:userId",
+  // DELETE /auth/sessions/:sessionId — admin only: force logout a specific session
+  app.delete<{ Params: { sessionId: string } }>(
+    "/sessions/:sessionId",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
       const role = (request.user as { role: string }).role;
@@ -114,18 +128,27 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only admin can force logout users" });
       }
 
-      const { userId } = request.params;
+      const { sessionId } = request.params;
+
+      // Find the session to get userId for broadcast
+      const session = await prisma.session.findUnique({
+        where: { id: sessionId },
+        include: { user: true },
+      });
+      if (!session) {
+        return reply.code(404).send({ error: "Session not found" });
+      }
 
       // Prevent admin from force-logging out themselves
-      const currentUserId = (request.user as { userId: string }).userId;
-      if (userId === currentUserId) {
+      const currentToken = request.headers.authorization?.replace("Bearer ", "");
+      if (session.token === currentToken) {
         return reply.code(400).send({ error: "Cannot force logout yourself. Use the regular logout." });
       }
 
-      await prisma.session.deleteMany({ where: { userId } });
-      broadcast({ type: "SESSION_CHANGED", payload: { event: "force_logout", userId } });
-      broadcast({ type: "FORCE_LOGOUT", payload: { userId } });
-      return reply.send({ message: "User session terminated" });
+      await prisma.session.delete({ where: { id: sessionId } });
+      broadcast({ type: "SESSION_CHANGED", payload: { event: "force_logout", userId: session.userId } });
+      broadcast({ type: "FORCE_LOGOUT", payload: { sessionId, userId: session.userId } });
+      return reply.send({ message: "Session terminated" });
     }
   );
 }
