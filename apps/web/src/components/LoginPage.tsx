@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, setToken, setRole, setUserId } from "@/lib/api";
+import { api, setToken, setRole, setUserId, setSessionId } from "@/lib/api";
 
 const ROLE_ROUTES: Record<string, string> = {
   COORDINATOR: "/coordinator",
@@ -27,6 +27,7 @@ export default function LoginPage() {
       setToken(data.token);
       setRole(data.role);
       setUserId(data.userId);
+      setSessionId(data.sessionId);
       router.push(ROLE_ROUTES[data.role] ?? "/");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");

@@ -1,6 +1,6 @@
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:4000/ws";
 
-import { getUserId, clearAuth } from "./api";
+import { getUserId, getSessionId, clearAuth } from "./api";
 
 let socket: WebSocket | null = null;
 type Listener = (msg: { type: string; payload: unknown }) => void;
@@ -23,8 +23,13 @@ export function connectWs() {
 
       // Auto-redirect if this user was force-logged out
       if (msg.type === "FORCE_LOGOUT" && typeof window !== "undefined") {
+        const mySessionId = getSessionId();
         const myUserId = getUserId();
-        if (myUserId && msg.payload?.userId === myUserId) {
+        // Match by sessionId first (precise); fall back to userId for non-optometrist roles
+        const kicked =
+          (mySessionId && msg.payload?.sessionId === mySessionId) ||
+          (!mySessionId && myUserId && msg.payload?.userId === myUserId);
+        if (kicked) {
           clearAuth();
           window.location.href = "/";
           return;

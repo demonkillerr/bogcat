@@ -27,10 +27,20 @@ export function setUserId(userId: string) {
   localStorage.setItem("bogcat_userId", userId);
 }
 
+export function getSessionId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("bogcat_sessionId");
+}
+
+export function setSessionId(sessionId: string) {
+  localStorage.setItem("bogcat_sessionId", sessionId);
+}
+
 export function clearAuth() {
   localStorage.removeItem("bogcat_token");
   localStorage.removeItem("bogcat_role");
   localStorage.removeItem("bogcat_userId");
+  localStorage.removeItem("bogcat_sessionId");
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {
@@ -116,8 +126,8 @@ export const api = {
 
   getActiveSessions: () => apiFetch("/auth/sessions"),
 
-  adminLogoutUser: (userId: string) =>
-    apiFetch(`/auth/sessions/${userId}`, { method: "DELETE" }),
+  adminLogoutSession: (sessionId: string) =>
+    apiFetch(`/auth/sessions/${sessionId}`, { method: "DELETE" }),
 
   addColleague: (payload: { name: string; type: "OC" | "SENIOR_OC" | "MANAGER"; isAssignable?: boolean }) =>
     apiFetch("/colleagues", {
@@ -143,14 +153,23 @@ export const api = {
   getWeeklyStats: (weekOf?: string) =>
     apiFetch(`/working-days/stats${weekOf ? `?weekOf=${weekOf}` : ""}`),
 
-  getOptometristProfile: () =>
-    apiFetch("/optometrist/profile/today"),
+  getOptometristProfiles: () =>
+    apiFetch("/optometrist/profiles/today"),
 
   saveOptometristProfile: (payload: { name: string; roomNumber: number }) =>
     apiFetch("/optometrist/profile", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  updateOptometristProfile: (id: string, payload: { name?: string; roomNumber?: number }) =>
+    apiFetch(`/optometrist/profile/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteOptometristProfile: (id: string) =>
+    apiFetch(`/optometrist/profile/${id}`, { method: "DELETE" }),
 
   getTodayOptometristCalls: () =>
     apiFetch("/optometrist/calls/today"),
