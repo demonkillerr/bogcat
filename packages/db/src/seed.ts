@@ -10,6 +10,7 @@ async function main() {
     { username: "coordinator", role: Role.COORDINATOR },
     { username: "frontdesk",   role: Role.FRONTDESK },
     { username: "admin",       role: Role.ADMIN },
+    { username: "optometrist", role: Role.OPTOMETRIST },
   ];
 
   for (const user of users) {

@@ -33,6 +33,7 @@ enum Role {
   COORDINATOR
   FRONTDESK
   ADMIN
+  OPTOMETRIST
 }
 
 // ─── Colleagues ──────────────────────────────────────────────────────────────
@@ -63,6 +64,7 @@ model WorkingDay {
   colleagues      ColleagueOnDay[]
   taskAllocations TaskAllocation[]
   patientArrivals PatientArrival[]
+  optometristCalls OptometristCall[]
 }
 
 model ColleagueOnDay {
@@ -130,4 +132,44 @@ enum ArrivalReason {
   SIGHT_TEST
   COLLECTION
   ADJUSTMENT
+}
+
+// ─── Optometrist ─────────────────────────────────────────────────────────────
+
+model OptometristProfile {
+  id         String   @id @default(cuid())
+  date       DateTime @unique
+  name       String
+  roomNumber Int
+  locked     Boolean  @default(false)
+}
+
+model OptometristCall {
+  id              String         @id @default(cuid())
+  workingDayId    String
+  roomNumber      Int
+  optometristName String
+  taskType        OptCallTaskType
+  status          OptCallStatus  @default(PENDING)
+  createdAt       DateTime       @default(now())
+  acknowledgedAt  DateTime?
+
+  workingDay WorkingDay @relation(fields: [workingDayId], references: [id])
+}
+
+enum OptCallTaskType {
+  POST_CHECK_SINGLE_STIM
+  POST_CHECK_MULTI_STIM
+  POST_CHECK_ZATA_24_2
+  POST_CHECK_PRESSURES
+  POST_CHECK_FUNDUS_PHOTOS
+  POST_CHECK_CLINICAL_OCT
+  POST_CHECK_CLINICAL_OPTOMAP
+  DISPENSE_SINGLE_VISION
+  DISPENSE_VARIFOCAL
+}
+
+enum OptCallStatus {
+  PENDING
+  ACKNOWLEDGED
 }
