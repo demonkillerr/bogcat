@@ -39,25 +39,15 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.code(401).send({ error: "Invalid credentials" });
       }
 
-      // 3. Enforce session limits
-      const existingSessions = await prisma.session.findMany({
+      // 3. Enforce single-session per account
+      const existingSession = await prisma.session.findUnique({
         where: { userId: user.id },
       });
 
-      if (user.role === "OPTOMETRIST") {
-        // Allow up to 4 concurrent sessions for optometrist
-        if (existingSessions.length >= 4) {
-          return reply.code(409).send({
-            error: `All 4 optometrist sessions are in use. An admin can force-logout a session to free one up.`,
-          });
-        }
-      } else {
-        // Single-session for all other roles
-        if (existingSessions.length > 0) {
-          return reply.code(409).send({
-            error: `Account "${username}" is already logged in. Only one login is allowed at a time.`,
-          });
-        }
+      if (existingSession) {
+        return reply.code(409).send({
+          error: `Account "${username}" is already logged in. Only one login is allowed at a time.`,
+        });
       }
 
       // 4. Sign JWT

@@ -9,6 +9,12 @@ function startOfToday(): Date {
   return d;
 }
 
+/** Extract room number from username, e.g. "optometrist_room2" → 2 */
+function roomFromUsername(username: string): number | null {
+  const match = username.match(/^optometrist_room(\d)$/);
+  return match ? Number(match[1]) : null;
+}
+
 export async function optometristRoutes(app: FastifyInstance) {
   // ─── Profiles ────────────────────────────────────────────────────────────
 
@@ -26,19 +32,32 @@ export async function optometristRoutes(app: FastifyInstance) {
     }
   );
 
-  // POST /optometrist/profile — claim a room for today (creates a new profile, locked immediately)
-  app.post<{ Body: { name: string; roomNumber: number } }>(
+  // POST /optometrist/profile — save profile for today (room derived from account)
+  app.post<{ Body: { name: string; roomNumber?: number } }>(
     "/profile",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
-      const role = (request.user as { role: string }).role;
+      const { role, username } = request.user as { role: string; username: string };
       if (role !== "OPTOMETRIST" && role !== "ADMIN") {
         return reply.code(403).send({ error: "Only optometrist or admin can create profiles" });
       }
 
-      const { name, roomNumber } = request.body;
+      const { name } = request.body;
       if (!name?.trim()) return reply.code(400).send({ error: "Name is required" });
-      if (![1, 2, 3, 4].includes(roomNumber)) return reply.code(400).send({ error: "Room number must be 1–4" });
+
+      // Optometrists: room derived from their account username
+      // Admin: must supply roomNumber in body
+      let roomNumber: number;
+      if (role === "OPTOMETRIST") {
+        const room = roomFromUsername(username);
+        if (!room) return reply.code(400).send({ error: "Cannot determine room from account" });
+        roomNumber = room;
+      } else {
+        if (!request.body.roomNumber || ![1, 2, 3, 4].includes(request.body.roomNumber)) {
+          return reply.code(400).send({ error: "Room number (1–4) is required for admin" });
+        }
+        roomNumber = request.body.roomNumber;
+      }
 
       const today = startOfToday();
 
@@ -134,6 +153,7 @@ export async function optometristRoutes(app: FastifyInstance) {
       roomNumber: number;
       optometristName: string;
       taskType: OptCallTaskType;
+      notes?: string;
     };
   }>(
     "/calls",
@@ -144,10 +164,16 @@ export async function optometristRoutes(app: FastifyInstance) {
         return reply.code(403).send({ error: "Only optometrist or admin can submit calls" });
       }
 
-      const { workingDayId, roomNumber, optometristName, taskType } = request.body;
+      const { workingDayId, roomNumber, optometristName, taskType, notes } = request.body;
 
       const call = await prisma.optometristCall.create({
-        data: { workingDayId, roomNumber, optometristName, taskType },
+        data: {
+          workingDayId,
+          roomNumber,
+          optometristName,
+          taskType,
+          ...(notes?.trim() ? { notes: notes.trim() } : {}),
+        },
       });
 
       broadcast({ type: "OPT_CALL", payload: call });
