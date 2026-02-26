@@ -35,3 +35,15 @@ export const COLLEAGUE_TYPE_LABELS: Record<string, string> = {
   SENIOR_OC: "Senior OC",
   MANAGER: "Manager",
 };
+
+export const OPT_CALL_LABELS: Record<string, string> = {
+  POST_CHECK_SINGLE_STIM:     "Single Stim",
+  POST_CHECK_MULTI_STIM:      "Multi Stim",
+  POST_CHECK_ZATA_24_2:       "Zata 24-2",
+  POST_CHECK_PRESSURES:       "Pressures",
+  POST_CHECK_FUNDUS_PHOTOS:   "Fundus Photos",
+  POST_CHECK_CLINICAL_OCT:    "Clinical OCT",
+  POST_CHECK_CLINICAL_OPTOMAP:"Clinical Optomap",
+  DISPENSE_SINGLE_VISION:     "Single Vision",
+  DISPENSE_VARIFOCAL:         "Varifocal",
+};

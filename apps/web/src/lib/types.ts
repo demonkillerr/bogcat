@@ -43,6 +43,36 @@ export interface ActiveSession {
   createdAt: string;
 }
 
+export type OptCallTaskType =
+  | "POST_CHECK_SINGLE_STIM"
+  | "POST_CHECK_MULTI_STIM"
+  | "POST_CHECK_ZATA_24_2"
+  | "POST_CHECK_PRESSURES"
+  | "POST_CHECK_FUNDUS_PHOTOS"
+  | "POST_CHECK_CLINICAL_OCT"
+  | "POST_CHECK_CLINICAL_OPTOMAP"
+  | "DISPENSE_SINGLE_VISION"
+  | "DISPENSE_VARIFOCAL";
+
+export interface OptometristProfile {
+  id: string;
+  date: string;
+  name: string;
+  roomNumber: number;
+  locked: boolean;
+}
+
+export interface OptometristCall {
+  id: string;
+  workingDayId: string;
+  roomNumber: number;
+  optometristName: string;
+  taskType: OptCallTaskType;
+  status: "PENDING" | "ACKNOWLEDGED";
+  createdAt: string;
+  acknowledgedAt: string | null;
+}
+
 export interface WeeklyStats {
   weekStart: string;
   weekEnd: string;

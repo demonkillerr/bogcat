@@ -142,4 +142,30 @@ export const api = {
 
   getWeeklyStats: (weekOf?: string) =>
     apiFetch(`/working-days/stats${weekOf ? `?weekOf=${weekOf}` : ""}`),
+
+  getOptometristProfile: () =>
+    apiFetch("/optometrist/profile/today"),
+
+  saveOptometristProfile: (payload: { name: string; roomNumber: number }) =>
+    apiFetch("/optometrist/profile", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getTodayOptometristCalls: () =>
+    apiFetch("/optometrist/calls/today"),
+
+  submitOptometristCall: (payload: {
+    workingDayId: string;
+    roomNumber: number;
+    optometristName: string;
+    taskType: string;
+  }) =>
+    apiFetch("/optometrist/calls", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  acknowledgeOptCall: (id: string) =>
+    apiFetch(`/optometrist/calls/${id}/acknowledge`, { method: "PATCH" }),
 };
