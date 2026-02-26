@@ -68,6 +68,7 @@ export interface OptometristCall {
   roomNumber: number;
   optometristName: string;
   taskType: OptCallTaskType;
+  notes: string | null;
   status: "PENDING" | "ACKNOWLEDGED";
   createdAt: string;
   acknowledgedAt: string | null;

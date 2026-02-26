@@ -36,11 +36,21 @@ export function setSessionId(sessionId: string) {
   localStorage.setItem("bogcat_sessionId", sessionId);
 }
 
+export function getUsername(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("bogcat_username");
+}
+
+export function setUsername(username: string) {
+  localStorage.setItem("bogcat_username", username);
+}
+
 export function clearAuth() {
   localStorage.removeItem("bogcat_token");
   localStorage.removeItem("bogcat_role");
   localStorage.removeItem("bogcat_userId");
   localStorage.removeItem("bogcat_sessionId");
+  localStorage.removeItem("bogcat_username");
 }
 
 async function apiFetch(path: string, options: RequestInit = {}) {
@@ -156,7 +166,7 @@ export const api = {
   getOptometristProfiles: () =>
     apiFetch("/optometrist/profiles/today"),
 
-  saveOptometristProfile: (payload: { name: string; roomNumber: number }) =>
+  saveOptometristProfile: (payload: { name: string; roomNumber?: number }) =>
     apiFetch("/optometrist/profile", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -179,6 +189,7 @@ export const api = {
     roomNumber: number;
     optometristName: string;
     taskType: string;
+    notes?: string;
   }) =>
     apiFetch("/optometrist/calls", {
       method: "POST",

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, setToken, setRole, setUserId, setSessionId } from "@/lib/api";
+import { api, setToken, setRole, setUserId, setSessionId, setUsername as storeUsername } from "@/lib/api";
 
 const ROLE_ROUTES: Record<string, string> = {
   COORDINATOR: "/coordinator",
@@ -11,9 +11,18 @@ const ROLE_ROUTES: Record<string, string> = {
   OPTOMETRIST: "/optometrist",
 };
 
+type AccountOption =
+  | "coordinator"
+  | "frontdesk"
+  | "admin"
+  | "optometrist_room1"
+  | "optometrist_room2"
+  | "optometrist_room3"
+  | "optometrist_room4";
+
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState<"coordinator" | "frontdesk" | "admin" | "optometrist">("coordinator");
+  const [username, setUsername] = useState<AccountOption>("coordinator");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -28,6 +37,7 @@ export default function LoginPage() {
       setRole(data.role);
       setUserId(data.userId);
       setSessionId(data.sessionId);
+      storeUsername(username);
       router.push(ROLE_ROUTES[data.role] ?? "/");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");
@@ -50,13 +60,18 @@ export default function LoginPage() {
             <label className="block text-sm font-medium text-slate-700 mb-1">Account</label>
             <select
               value={username}
-              onChange={(e) => setUsername(e.target.value as typeof username)}
+              onChange={(e) => setUsername(e.target.value as AccountOption)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="coordinator">Coordinator</option>
               <option value="frontdesk">Front Desk</option>
               <option value="admin">Admin</option>
-              <option value="optometrist">Optometrist</option>
+              <optgroup label="Optometrist">
+                <option value="optometrist_room1">Optom — Room 1</option>
+                <option value="optometrist_room2">Optom — Room 2</option>
+                <option value="optometrist_room3">Optom — Room 3</option>
+                <option value="optometrist_room4">Optom — Room 4</option>
+              </optgroup>
             </select>
           </div>
 
