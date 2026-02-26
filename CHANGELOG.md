@@ -38,7 +38,15 @@
 - Give frontdesk real time updates applied by admin or coordinator
 - Remove date-of-birth field from entire codebase, replace it with optional notes.
 
-# v0.2.x
+# v0.2.0
 - Add new entity, optoms and integrate with the coordinator's workflow
 - Allow optoms to call for post checks or dispense
+
+# v0.2.1
+- Update admin's optom page to manage optom's rooms
+- Allow optoms to enter their name once they arrive
+- How can optoms login (multiple accounts?)
+
+# v0.2.2
 - Notify coordinator to send correct person to optom's room (simillar to front desk)
+- Allow optoms to call for two tests

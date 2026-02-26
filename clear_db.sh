@@ -1,0 +1,1 @@
+cd /home/dk/code/projects/bogcat && export $(grep -v '^#' .env | xargs) && cd packages/db && npx prisma migrate reset --force
