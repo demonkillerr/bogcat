@@ -9,60 +9,119 @@ function startOfToday(): Date {
   return d;
 }
 
-function isAfter10AM(): boolean {
-  const now = new Date();
-  return now.getHours() >= 10;
-}
-
 export async function optometristRoutes(app: FastifyInstance) {
-  // ─── Profile ─────────────────────────────────────────────────────────────
+  // ─── Profiles ────────────────────────────────────────────────────────────
 
-  // GET /optometrist/profile/today — get today's optometrist profile
+  // GET /optometrist/profiles/today — get all optometrist profiles for today
   app.get(
-    "/profile/today",
+    "/profiles/today",
     { preHandler: [app.authenticate] },
     async (_request, reply) => {
       const today = startOfToday();
-      const profile = await prisma.optometristProfile.findUnique({
+      const profiles = await prisma.optometristProfile.findMany({
         where: { date: today },
+        orderBy: { roomNumber: "asc" },
       });
-      return reply.send(profile ?? null);
+      return reply.send(profiles);
     }
   );
 
-  // POST /optometrist/profile — create or update today's profile
+  // POST /optometrist/profile — claim a room for today (creates a new profile, locked immediately)
   app.post<{ Body: { name: string; roomNumber: number } }>(
     "/profile",
     { preHandler: [app.authenticate] },
     async (request, reply) => {
       const role = (request.user as { role: string }).role;
       if (role !== "OPTOMETRIST" && role !== "ADMIN") {
-        return reply.code(403).send({ error: "Only optometrist or admin can update the optometrist profile" });
-      }
-
-      const today = startOfToday();
-      const existing = await prisma.optometristProfile.findUnique({ where: { date: today } });
-
-      // Enforce 10AM lock unless admin
-      if (existing?.locked && role !== "ADMIN") {
-        return reply.code(403).send({ error: "Profile is locked for today (after 10:00 AM). Contact admin to make changes." });
+        return reply.code(403).send({ error: "Only optometrist or admin can create profiles" });
       }
 
       const { name, roomNumber } = request.body;
       if (!name?.trim()) return reply.code(400).send({ error: "Name is required" });
       if (![1, 2, 3, 4].includes(roomNumber)) return reply.code(400).send({ error: "Room number must be 1–4" });
 
-      // Lock when the profile is saved after 10AM
-      const locked = isAfter10AM();
+      const today = startOfToday();
 
-      const profile = await prisma.optometristProfile.upsert({
-        where: { date: today },
-        create: { date: today, name: name.trim(), roomNumber, locked },
-        update: { name: name.trim(), roomNumber, ...(role === "ADMIN" ? {} : { locked }) },
+      // Check if the room is already taken today
+      const existing = await prisma.optometristProfile.findUnique({
+        where: { date_roomNumber: { date: today, roomNumber } },
       });
 
-      broadcast({ type: "OPT_PROFILE_UPDATED", payload: profile });
+      if (existing) {
+        if (role === "ADMIN") {
+          // Admin can overwrite
+          const updated = await prisma.optometristProfile.update({
+            where: { id: existing.id },
+            data: { name: name.trim() },
+          });
+          broadcast({ type: "OPT_PROFILES_UPDATED", payload: null });
+          return reply.send(updated);
+        }
+        return reply.code(409).send({ error: `Room ${roomNumber} is already taken by ${existing.name}.` });
+      }
+
+      // Create new profile — locked immediately
+      const profile = await prisma.optometristProfile.create({
+        data: { date: today, name: name.trim(), roomNumber, locked: true },
+      });
+
+      broadcast({ type: "OPT_PROFILES_UPDATED", payload: null });
       return reply.send(profile);
+    }
+  );
+
+  // PATCH /optometrist/profile/:id — admin only: update a profile
+  app.patch<{ Params: { id: string }; Body: { name?: string; roomNumber?: number } }>(
+    "/profile/:id",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const role = (request.user as { role: string }).role;
+      if (role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only admin can edit locked profiles" });
+      }
+
+      const { name, roomNumber } = request.body;
+      const today = startOfToday();
+
+      // If changing room number, check for conflicts
+      if (roomNumber !== undefined) {
+        if (![1, 2, 3, 4].includes(roomNumber)) {
+          return reply.code(400).send({ error: "Room number must be 1–4" });
+        }
+        const conflict = await prisma.optometristProfile.findFirst({
+          where: { date: today, roomNumber, id: { not: request.params.id } },
+        });
+        if (conflict) {
+          return reply.code(409).send({ error: `Room ${roomNumber} is already taken by ${conflict.name}.` });
+        }
+      }
+
+      const profile = await prisma.optometristProfile.update({
+        where: { id: request.params.id },
+        data: {
+          ...(name?.trim() ? { name: name.trim() } : {}),
+          ...(roomNumber !== undefined ? { roomNumber } : {}),
+        },
+      });
+
+      broadcast({ type: "OPT_PROFILES_UPDATED", payload: null });
+      return reply.send(profile);
+    }
+  );
+
+  // DELETE /optometrist/profile/:id — admin only: remove a profile
+  app.delete<{ Params: { id: string } }>(
+    "/profile/:id",
+    { preHandler: [app.authenticate] },
+    async (request, reply) => {
+      const role = (request.user as { role: string }).role;
+      if (role !== "ADMIN") {
+        return reply.code(403).send({ error: "Only admin can remove profiles" });
+      }
+
+      await prisma.optometristProfile.delete({ where: { id: request.params.id } });
+      broadcast({ type: "OPT_PROFILES_UPDATED", payload: null });
+      return reply.send({ message: "Profile removed" });
     }
   );
 
