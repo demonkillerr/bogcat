@@ -6,9 +6,10 @@ import DashboardLayout from "@/components/DashboardLayout";
 import DaySetupPanel from "./DaySetupPanel";
 import ColleagueRow from "./ColleagueRow";
 import ArrivalAlerts from "./ArrivalAlerts";
+import OptCallAlerts from "./OptCallAlerts";
 import { api, getRole } from "@/lib/api";
 import { connectWs, addWsListener } from "@/lib/ws";
-import type { Colleague, WorkingDay, PatientArrival } from "@/lib/types";
+import type { Colleague, WorkingDay, PatientArrival, OptometristCall } from "@/lib/types";
 
 export default function CoordinatorDashboard() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function CoordinatorDashboard() {
   const [allColleagues, setAllColleagues] = useState<Colleague[]>([]);
   const [workingDay, setWorkingDay] = useState<WorkingDay | null>(null);
   const [arrivals, setArrivals] = useState<PatientArrival[]>([]);
+  const [optCalls, setOptCalls] = useState<OptometristCall[]>([]);
   const [loading, setLoading] = useState(true);
 
   // 10AM lock — check every minute
@@ -34,14 +36,16 @@ export default function CoordinatorDashboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [cols, day, arriv] = await Promise.all([
+      const [cols, day, arriv, optCallsData] = await Promise.all([
         api.getColleagues(),
         api.getTodayWorkingDay(),
         api.getTodayArrivals(),
+        api.getTodayOptometristCalls(),
       ]);
       setAllColleagues(cols);
       setWorkingDay(day);
       setArrivals(arriv);
+      setOptCalls(optCallsData);
     } catch (e) {
       console.error(e);
     } finally {
@@ -67,6 +71,18 @@ export default function CoordinatorDashboard() {
         const a = msg.payload as PatientArrival;
         setArrivals((prev) =>
           prev.map((x) => (x.id === a.id ? { ...x, acknowledged: true } : x))
+        );
+      }
+      if (msg.type === "OPT_CALL") {
+        const c = msg.payload as OptometristCall;
+        setOptCalls((prev) =>
+          prev.some((x) => x.id === c.id) ? prev : [c, ...prev]
+        );
+      }
+      if (msg.type === "OPT_CALL_ACKNOWLEDGED") {
+        const c = msg.payload as OptometristCall;
+        setOptCalls((prev) =>
+          prev.map((x) => (x.id === c.id ? c : x))
         );
       }
     });
@@ -114,6 +130,16 @@ export default function CoordinatorDashboard() {
 
   return (
     <DashboardLayout title="Coordinator">
+      {/* Optometrist call alerts */}
+      <OptCallAlerts
+        calls={optCalls}
+        onAcknowledged={(id) =>
+          setOptCalls((prev) =>
+            prev.map((c) => (c.id === id ? { ...c, status: "ACKNOWLEDGED" as const } : c))
+          )
+        }
+      />
+
       {/* Patient arrival alerts */}
       <ArrivalAlerts
         arrivals={arrivals}
