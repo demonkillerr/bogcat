@@ -39,7 +39,7 @@
 - Remove date-of-birth field from entire codebase, replace it with optional notes.
 
 # v0.2.0
-- Add new entity, optoms and integrate with the coordinator's workflow
+- Add new entity, optometrists
 - Allow optoms to call for post checks or dispense
 
 # v0.2.1
@@ -48,5 +48,6 @@
 - How can optoms login (multiple accounts?)
 
 # v0.2.2
-- Notify coordinator to send correct person to optom's room (simillar to front desk)
-- Allow optoms to call for two tests
+- Allow optoms to call for multiple things (post checks + dispense)
+- Simplify optom's page and replace today's calls with a short optional note textbox
+- Create 4 login accounts for optoms based on room number
